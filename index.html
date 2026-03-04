@@ -2145,7 +2145,7 @@ function switchPortfolio() {
     currentPortfolio = document.getElementById('portfolioSelect').value;
     applyTheme(currentPortfolio);
     renderAll();
-    if (document.getElementById('splitterBody').classList.contains('open')) renderSplitterRows();
+    renderSplitterRows();
     document.getElementById('splitterResult').classList.remove('show');
     pendingSplitter = null;
 }
