@@ -1,0 +1,2152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#e88b93">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Bloom">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>Bloom Portfolios</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Playfair+Display:wght@400;700;900&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #fef9f5;
+            --bg-card: rgba(255,255,255,0.88);
+            --bg-card-hover: rgba(255,255,255,0.95);
+            --bg-input: rgba(255,255,255,0.6);
+            --border: #f0c4c8;
+            --border-light: #f8dde0;
+            --text: #2a2a2a;
+            --text-dim: #6b5e5e;
+            --text-bright: #2d2d2d;
+            --rose: #e88b93;
+            --rose-deep: #d46b73;
+            --rose-light: #fcd4d8;
+            --rose-glow: #f5b0b8;
+            --sky: #5ba4e6;
+            --sky-light: #a8d4f7;
+            --leaf: #5c8c6a;
+            --leaf-light: #8aba96;
+            --leaf-dim: #4a7058;
+            --red: #d45a5a;
+            --gold: #d4a843;
+            --cream: #fef9f5;
+            --petal: #fff0f2;
+        }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            font-size: 15px;
+        }
+
+        .bg-watermark {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            object-fit: cover;
+            object-position: center;
+            opacity: 1;
+            pointer-events: none;
+            z-index: 0;
+            transition: opacity 0.4s ease;
+        }
+        .bg-watermark.fading { opacity: 0; }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ============ HEADER ============ */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+            border-image: linear-gradient(90deg, transparent, var(--rose), var(--border), transparent) 1;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--rose-deep);
+            letter-spacing: 1px;
+            line-height: 1;
+            text-shadow: var(--header-shadow, 0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6));
+        }
+        .header h1 span {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 2.4rem;
+            color: var(--rose);
+            text-shadow: var(--header-shadow, 0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6));
+        }
+        .header-sub {
+            font-size: 0.7rem;
+            color: var(--rose-deep);
+            text-shadow: var(--header-shadow, 0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6));
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--rose-deep);
+            padding: 6px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: 'Quicksand', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { background: var(--rose-light); border-color: var(--rose); box-shadow: 0 2px 12px rgba(232,139,147,0.2); }
+        .btn-primary { border-color: var(--rose); background: var(--rose-light); font-weight: 700; }
+        .btn-primary:hover { background: var(--rose); color: white; }
+        .btn-green { border-color: var(--leaf); color: var(--leaf); }
+        .btn-green:hover { background: var(--leaf); color: white; }
+        .btn-red { border-color: var(--red); color: var(--red); }
+        .btn-red:hover { background: var(--red); color: white; }
+
+        .portfolio-select {
+            background: var(--bg-card);
+            border: 1px solid var(--rose);
+            color: var(--text-bright);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-family: 'Playfair Display', serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .portfolio-select option { background: var(--cream); color: var(--text); }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .status-dot.ok { background: var(--leaf); }
+        .status-dot.loading { background: var(--rose); animation: pulse 1s infinite; }
+        .status-dot.error { background: var(--red); }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* ============ CARD BASE ============ */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            backdrop-filter: none;
+            box-shadow: 0 2px 16px rgba(232,139,147,0.08);
+        }
+
+        /* ============ PROGRESS BAR ============ */
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.75rem;
+        }
+        .progress-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            color: var(--text-bright);
+            font-weight: 700;
+        }
+        .progress-amount {
+            font-size: 2rem;
+            color: var(--rose-deep);
+            font-weight: 600;
+            font-family: 'Cormorant Garamond', serif;
+        }
+        .progress-remaining { font-size: 0.7rem; color: var(--text-dim); font-weight: 500; }
+        .progress-bar-outer {
+            width: 100%; height: 14px;
+            background: var(--petal);
+            border-radius: 7px;
+            overflow: hidden;
+            border: 1px solid var(--border-light);
+        }
+        .progress-bar-inner {
+            height: 100%;
+            background: linear-gradient(90deg, var(--rose-light), var(--rose), var(--leaf-light));
+            border-radius: 7px;
+            transition: width 0.6s ease;
+            min-width: 0;
+        }
+        .progress-pct {
+            text-align: center;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .funded-banner {
+            text-align: center;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--leaf-light), var(--leaf));
+            border-radius: 16px;
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 1.25rem;
+            display: none;
+        }
+
+        /* ============ STATS BAR ============ */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            backdrop-filter: none;
+            box-shadow: 0 1px 8px rgba(232,139,147,0.06);
+        }
+        .stat-label {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .stat-value {
+            font-size: 1.2rem;
+            color: var(--text-bright);
+            font-weight: 700;
+            font-family: 'Playfair Display', serif;
+        }
+        .stat-value.green { color: var(--leaf); }
+        .stat-value.red { color: var(--red); }
+
+        /* ============ WEEKLY SPLITTER ============ */
+        .splitter-section {
+            background: var(--splitter-bg, linear-gradient(135deg, rgba(34,80,54,0.45), rgba(240,253,244,0.75)));
+            border: 1px solid rgba(92,140,106,0.4);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            backdrop-filter: none;
+        }
+        .splitter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .splitter-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            color: var(--rose-deep);
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+        }
+        .splitter-toggle { color: var(--text-dim); font-size: 0.8rem; font-weight: 600; }
+        .splitter-body { display: none; margin-top: 1rem; }
+        .splitter-body.open { display: block; }
+        .splitter-total-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .splitter-total-label { font-size: 1.3rem; color: var(--text-bright); font-weight: 700; font-family: 'Playfair Display', serif; }
+        .splitter-total-input {
+            background: rgba(255,255,255,0.5);
+            border: 1px solid rgba(0,0,0,0.15);
+            color: #3a2e1e;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.4rem;
+            font-weight: 600;
+            width: 90px;
+        }
+        .splitter-total-input:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px rgba(91,164,230,0.15); }
+        .splitter-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .splitter-row:last-of-type { border-bottom: none; }
+        .splitter-port-name { width: 180px; font-size: 1.3rem; color: var(--text-bright); font-weight: 700; font-family: 'Playfair Display', serif; }
+        .splitter-pct-input {
+            background: rgba(255,255,255,0.5);
+            border: 1px solid rgba(0,0,0,0.15);
+            color: #3a2e1e;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.4rem;
+            font-weight: 600;
+            width: 60px;
+            text-align: center;
+        }
+        .splitter-pct-input:focus { outline: none; border-color: var(--sky); }
+        .splitter-dollar { font-size: 1.6rem; color: #ff8c00; font-weight: 700; width: 90px; text-align: right; text-shadow: none; font-family: 'Cormorant Garamond', serif; }
+        .splitter-note { font-size: 0.85rem; color: var(--leaf-dim); flex: 1; font-weight: 700; text-shadow: var(--header-shadow, 0 0 8px rgba(255,255,255,0.8)); }
+        .splitter-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-light);
+        }
+        .splitter-total-pct { font-size: 1.4rem; font-weight: 700; font-family: 'Playfair Display', serif; font-style: italic; text-shadow: 0 0 10px rgba(255,255,255,0.8); }
+        .splitter-total-pct.ok { color: var(--rose-deep); }
+        .splitter-total-pct.bad { color: var(--red); }
+        .splitter-result {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(0,0,0,0.15);
+            border-radius: 10px;
+            font-size: 1rem;
+            color: var(--text);
+            display: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .splitter-result.show { display: block; }
+        .splitter-result-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .splitter-result-line:last-child { border: none; }
+        .splitter-result-port { display: inline-block; padding: 4px 14px; border: 1px solid var(--border); border-radius: 20px; background: var(--bg-card); color: var(--rose-deep); font-weight: 700; font-family: 'Playfair Display', serif; font-size: 1.1rem; }
+        .splitter-result-detail { color: var(--leaf); font-size: 0.95rem; }
+        .splitter-result-amt { color: #ff8c00; font-weight: 700; font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; }
+
+        /* Stock Picks buy alert pill */
+        .stock-opps-btn {
+            background: white !important;
+            border-color: #d4a843 !important;
+            color: var(--rose-deep) !important;
+            animation: oppsPulse 1.5s ease-in-out infinite;
+        }
+        .stock-opps-btn.show { display: inline-block !important; }
+        @keyframes oppsPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ============ BUY OPPORTUNITIES ============ */
+        .buy-opps {
+            background: linear-gradient(135deg, rgba(92,140,106,0.08), rgba(138,186,150,0.12));
+            border: 1px solid var(--leaf-light);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            display: none;
+        }
+        .buy-opps.show { display: block; }
+        .buy-opps-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.95rem;
+            color: var(--leaf);
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            animation: bloomPulse 3s infinite;
+        }
+        @keyframes bloomPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.65; } }
+        .buy-opps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+        .buy-opp-card {
+            background: white;
+            border: 2px solid var(--leaf-light);
+            border-radius: 12px;
+            padding: 0.75rem;
+            animation: petalGlow 3s infinite;
+        }
+        @keyframes petalGlow {
+            0%,100% { box-shadow: 0 2px 8px rgba(92,140,106,0.1); }
+            50% { box-shadow: 0 2px 20px rgba(92,140,106,0.25); }
+        }
+        .buy-opp-ticker { font-size: 1.1rem; font-weight: 700; color: var(--leaf); font-family: 'Playfair Display', serif; }
+        .buy-opp-price { font-size: 0.9rem; color: var(--text-bright); font-weight: 700; margin: 4px 0; }
+        .buy-opp-stats { font-size: 0.6rem; color: var(--text-dim); font-weight: 500; }
+        .buy-opp-stats span { color: var(--leaf); font-weight: 700; }
+
+        /* ============ SMART DCA SECTION ============ */
+        .dca-section {
+            background: var(--dca-bg, linear-gradient(135deg, rgba(34,80,54,0.45), rgba(240,253,244,0.75)));
+            border: 1px solid rgba(92,140,106,0.4);
+        }
+        .dca-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.95rem;
+            color: #f5e6c8;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: 1px;
+        }
+        .dca-input-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .dca-input {
+            background: rgba(255,255,255,0.5);
+            border: 1px solid rgba(0,0,0,0.15);
+            color: #3a2e1e;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-family: 'Quicksand', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            width: 160px;
+        }
+        .dca-input:focus { outline: none; border-color: var(--rose); box-shadow: 0 0 0 3px rgba(232,139,147,0.15); }
+
+        .alloc-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+            margin-top: 0.75rem;
+        }
+        .alloc-table th {
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            color: #f5e6c8;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+        .alloc-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text);
+            font-weight: 500;
+        }
+        .alloc-table tr:hover td { background: var(--petal); }
+        .alloc-amount { color: var(--rose-deep); font-weight: 700; }
+        .alloc-bar-cell { width: 100px; }
+        .alloc-bar-outer { width: 100%; height: 6px; background: var(--petal); border-radius: 3px; overflow: hidden; }
+        .alloc-bar-inner { height: 100%; border-radius: 3px; background: var(--rose); transition: width 0.4s; }
+
+        .dca-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            justify-content: flex-end;
+        }
+
+        /* ============ ETF GRID ============ */
+        .etf-grid {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            overflow-x: auto;
+            scroll-behavior: smooth;
+            scroll-snap-type: x mandatory;
+            padding-bottom: 8px;
+        }
+        .etf-grid::-webkit-scrollbar { height: 6px; }
+        .etf-grid::-webkit-scrollbar-track { background: transparent; }
+        .etf-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        .etf-card {
+            background: linear-gradient(to bottom, rgba(255,255,255,0.82), rgba(252,243,222,0.72));
+            border: 1px solid rgba(220,200,160,0.4);
+            border-radius: 12px;
+            padding: 0.75rem;
+            backdrop-filter: none;
+            box-shadow: 0 1px 8px rgba(232,139,147,0.06);
+            transition: all 0.2s;
+            min-width: 280px;
+            flex-shrink: 0;
+            scroll-snap-align: start;
+        }
+        .etf-card:hover { box-shadow: 0 4px 20px rgba(232,139,147,0.15); transform: translateY(-1px); }
+        .etf-ticker {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--sky);
+        }
+        .etf-purpose { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem; font-weight: 600; }
+        .etf-price-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem; }
+        .etf-price { font-size: 1rem; font-weight: 600; color: var(--text-bright); font-family: 'Cormorant Garamond', serif; }
+        .etf-change { font-size: 0.7rem; font-weight: 600; font-family: 'Cormorant Garamond', serif; }
+        .etf-change.up { color: var(--leaf); }
+        .etf-change.down { color: var(--red); }
+        .etf-change.flat { color: var(--text-dim); }
+        .etf-alloc-row { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-dim); margin-bottom: 4px; font-weight: 500; }
+        .etf-bar-outer { width: 100%; height: 6px; background: var(--petal); border-radius: 3px; overflow: hidden; margin-bottom: 0.5rem; }
+        .etf-bar-inner { height: 100%; border-radius: 3px; transition: width 0.4s; }
+        .etf-bar-inner.on { background: var(--leaf-light); }
+        .etf-bar-inner.under { background: var(--sky); }
+        .etf-bar-inner.over { background: var(--rose); }
+        .etf-score { font-size: 0.6rem; font-weight: 700; padding: 2px 6px; border-radius: 8px; }
+        .score-good { background: rgba(92,140,106,0.12); color: var(--leaf); }
+        .score-ok { background: rgba(232,139,147,0.12); color: var(--gold); }
+        .score-bad { background: rgba(212,90,90,0.12); color: var(--red); }
+        .etf-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2px 8px;
+            font-size: 0.6rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border-light);
+        }
+        .etf-detail-label { color: var(--text-dim); font-weight: 700; }
+        .etf-detail-value { color: var(--text-bright); text-align: right; font-weight: 700; font-family: 'Cormorant Garamond', serif; font-size: 0.95rem; }
+        .etf-div-btn, .etf-sell-btn {
+            margin-top: 0.5rem;
+            font-size: 0.55rem;
+            padding: 4px 8px;
+        }
+
+        /* ============ BADGES ============ */
+        .badge-take-profit {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(232,139,147,0.15);
+            color: var(--gold);
+            animation: bloomPulse 3s infinite;
+        }
+        .badge-buy-opp {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(92,140,106,0.15);
+            color: var(--leaf);
+            animation: petalGlow 3s infinite;
+        }
+
+        /* ============ CHARTS ============ */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 16px;
+            padding: 1rem;
+            backdrop-filter: none;
+            box-shadow: 0 1px 8px rgba(232,139,147,0.06);
+        }
+        .chart-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.85rem;
+            color: var(--text-bright);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+        .chart-canvas { display: block; margin: 0 auto; }
+        .pie-container { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .pie-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+        .pie-legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.6rem; font-weight: 600; }
+        .pie-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* ============ REBALANCE ALERTS ============ */
+        .alert-section {
+            background: linear-gradient(135deg, rgba(232,139,147,0.05), rgba(232,139,147,0.10));
+            border: 1px solid var(--rose-light);
+            border-radius: 16px;
+            padding: 1rem;
+            margin-bottom: 1.25rem;
+            display: none;
+        }
+        .alert-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.85rem;
+            color: var(--red);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .alert-item {
+            font-size: 0.7rem;
+            padding: 4px 0;
+            color: var(--text);
+            border-bottom: 1px solid var(--border-light);
+            font-weight: 500;
+        }
+        .alert-item:last-child { border: none; }
+
+        /* ============ HISTORY LOG ============ */
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .history-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.85rem;
+            color: var(--text-bright);
+            font-weight: 700;
+        }
+        .history-toggle { color: var(--text-dim); font-size: 0.8rem; font-weight: 600; }
+        .history-body { display: none; margin-top: 0.75rem; }
+        .history-body.open { display: block; }
+        .history-item {
+            font-size: 0.65rem;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+        }
+        .history-item:last-child { border: none; }
+        .history-date { color: var(--text-dim); }
+        .history-detail { color: var(--text); }
+        .history-amount { color: var(--rose-deep); font-weight: 700; }
+        .history-type { font-size: 0.5rem; padding: 1px 8px; border-radius: 10px; font-weight: 700; }
+        .history-type.dca { background: rgba(91,164,230,0.12); color: var(--sky); }
+        .history-type.div { background: rgba(92,140,106,0.12); color: var(--leaf); }
+        .history-type.sell { background: rgba(212,90,90,0.12); color: var(--red); }
+
+        /* ============ MODALS ============ */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.3); z-index: 9998; display: none;
+            justify-content: center; align-items: center;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: rgba(20,15,25,0.75);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(168,212,247,0.2);
+            border-radius: 20px;
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .modal-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            color: var(--sky-light);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(91,164,230,0.3);
+        }
+        .modal-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 0.4rem;
+            padding: 6px 8px;
+            border-radius: 10px;
+            transition: background 0.2s;
+        }
+        .modal-row:hover { background: rgba(168,212,247,0.06); }
+        .modal-row label {
+            width: 60px;
+            font-size: 0.8rem;
+            color: var(--rose-glow);
+            font-weight: 700;
+        }
+        .modal-input {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(168,212,247,0.15);
+            color: #c8e4ff;
+            padding: 7px 10px;
+            border-radius: 10px;
+            font-family: 'Quicksand', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            width: 100px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .modal-input:focus { outline: none; border-color: var(--sky); background: rgba(91,164,230,0.1); }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
+
+        .div-modal-info {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        /* ============ RESPONSIVE ============ */
+        @media (max-width: 768px) {
+            .content { padding: 1rem; }
+            .header h1 { font-size: 1.6rem; }
+            .header h1 span { font-size: 1.8rem; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .etf-grid { min-width: 0; }
+            .charts-section { grid-template-columns: 1fr; }
+            .dca-input { width: 120px; }
+            .header-right { justify-content: flex-start; width: 100%; }
+            .splitter-port-name { width: 100px; font-size: 0.65rem; }
+            .splitter-dollar { width: 65px; font-size: 0.75rem; }
+            .splitter-note { display: none; }
+        }
+        @media (max-width: 480px) {
+            .stats-bar { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+            .etf-grid { gap: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<img src="bg.webp" class="bg-watermark" alt="">
+
+<div class="content">
+    <div class="error-banner" id="errorBanner" style="display:none; background:var(--red); color:white; padding:8px 12px; border-radius:12px; margin-bottom:1rem; font-size:0.75rem; font-weight:600;"></div>
+
+    <!-- HEADER -->
+    <div class="header">
+        <div class="header-left">
+            <div>
+                <h1><span>Bloom</span> Portfolios</h1>
+                <div class="header-sub">Smart DCA Allocation</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <select class="portfolio-select" id="portfolioSelect" onchange="switchPortfolio()">
+                <option value="cushion">4-Year Cushion</option>
+                <option value="growth">Lifetime Growth</option>
+                <option value="ira">IRA Retirement</option>
+                <option value="stocks">Stock Picks</option>
+            </select>
+            <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
+            <button class="btn" onclick="refreshPrices()">Refresh</button>
+            <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
+            <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="document.getElementById('portfolioSelect').value='stocks'; switchPortfolio();" style="display:none;"></button>
+        </div>
+    </div>
+
+    <!-- WEEKLY DCA SPLITTER -->
+    <div class="splitter-section">
+        <div class="splitter-header" onclick="toggleSplitter()">
+            <div class="splitter-title">Weekly DCA Splitter</div>
+            <div class="splitter-toggle" id="splitterToggle">+ Show</div>
+        </div>
+        <div class="splitter-body" id="splitterBody">
+            <div class="splitter-total-row">
+                <span class="splitter-total-label">Total $</span>
+                <input type="text" class="splitter-total-input" id="splitterTotal" placeholder="⋆⁺₊⋆ ☾⋆⁺₊⋆" inputmode="decimal" oninput="updateSplitterPreview()">
+            </div>
+            <div id="splitterRows"></div>
+            <div class="splitter-footer">
+                <div class="splitter-total-pct" id="splitterTotalPct">Total: 0%</div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn" onclick="resetSplitterRatios()">Reset</button>
+                    <button class="btn btn-primary" onclick="previewSplitter()" id="splitterRunBtn">Preview Split</button>
+                </div>
+            </div>
+            <div class="splitter-result" id="splitterResult">
+                <div id="splitterResultBody"></div>
+                <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.75rem;">
+                    <button class="btn btn-red" onclick="cancelSplitter()">Cancel</button>
+                    <button class="btn btn-green" onclick="confirmSplitter()">Confirm All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BUY OPPORTUNITIES -->
+    <div class="buy-opps" id="buyOpps">
+        <div class="buy-opps-title">Buy Opportunities</div>
+        <div class="buy-opps-grid" id="buyOppsGrid"></div>
+    </div>
+
+    <!-- FUNDED BANNER -->
+    <div class="funded-banner" id="fundedBanner">Portfolio Fully Funded!</div>
+
+    <!-- PROGRESS BAR -->
+    <div class="card">
+        <div class="progress-header">
+            <div>
+                <div class="progress-title" id="progressTitle">4-Year Cushion</div>
+                <div class="progress-remaining" id="progressRemaining">$108,000 remaining</div>
+            </div>
+            <div class="progress-amount" id="progressAmount">$0</div>
+        </div>
+        <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progressBar" style="width: 0%"></div>
+        </div>
+        <div class="progress-pct" id="progressPct">0.0% funded</div>
+    </div>
+
+    <!-- STATS BAR -->
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-label">Total Value</div>
+            <div class="stat-value" id="statTotalValue">$0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Invested</div>
+            <div class="stat-value" id="statTotalInvested">$0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Return</div>
+            <div class="stat-value" id="statTotalReturn">$0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Dividends Earned</div>
+            <div class="stat-value" id="statDividends">$0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Cash Available</div>
+            <div class="stat-value" id="statCash" style="color:var(--rose-deep);">$0</div>
+        </div>
+        <div class="stat-card" id="statSpecial" style="display:none;">
+            <div class="stat-label" id="statSpecialLabel"></div>
+            <div class="stat-value" id="statSpecialValue"></div>
+        </div>
+    </div>
+
+    <!-- SMART DCA SECTION -->
+    <div class="card dca-section">
+        <div class="dca-title">Smart DCA</div>
+        <div class="dca-input-row">
+            <span style="color:#f5e6c8; font-size:0.85rem; font-weight:700; text-shadow: 0 1px 4px rgba(0,0,0,0.2);">New $ </span>
+            <input type="text" class="dca-input" id="dcaAmount" placeholder="⋆⁺₊⋆ ☾⋆⁺₊⋆" inputmode="decimal">
+            <span style="color:var(--text-dim); font-size:0.65rem; font-weight:500;" id="dcaCashInfo"></span>
+            <button class="btn btn-primary" onclick="previewDCA()">Preview Allocation</button>
+            <label style="font-size:0.65rem; color:var(--text-dim); display:none; align-items:center; gap:4px; font-weight:600;">
+                <input type="checkbox" id="dcaUseCash" checked> Use cash
+            </label>
+        </div>
+        <div id="dcaPreview" style="display:none;">
+            <table class="alloc-table">
+                <thead>
+                    <tr>
+                        <th>ETF</th>
+                        <th>Gap Score</th>
+                        <th>Val Score</th>
+                        <th>Composite</th>
+                        <th>Allocation</th>
+                        <th class="alloc-bar-cell">Weight</th>
+                    </tr>
+                </thead>
+                <tbody id="dcaTableBody"></tbody>
+            </table>
+            <div style="margin-top:0.75rem; font-size:0.85rem; color:#f5e6c8; font-weight:600; text-shadow: 0 1px 4px rgba(0,0,0,0.2);" id="dcaSummary"></div>
+            <div class="dca-actions">
+                <button class="btn btn-red" onclick="cancelDCA()">Cancel</button>
+                <button class="btn btn-green" onclick="confirmDCA()">Confirm DCA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="charts-section">
+        <div class="chart-card">
+            <div class="chart-title">Allocation</div>
+            <div class="pie-container">
+                <canvas id="pieChart" width="180" height="180" class="chart-canvas"></canvas>
+                <div class="pie-legend" id="pieLegend"></div>
+            </div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-title">Growth Over Time</div>
+            <canvas id="growthChart" width="400" height="200" class="chart-canvas"></canvas>
+            <div style="font-size:0.5rem; color:var(--text-dim); margin-top:4px; text-align:center; font-weight:500;" id="growthLabel">Based on DCA history</div>
+        </div>
+    </div>
+
+    <!-- ETF GRID -->
+    <div class="etf-grid" id="etfGrid"></div>
+
+    <!-- REBALANCE ALERTS -->
+    <div class="alert-section" id="alertSection">
+        <div class="alert-title">Drift Alerts</div>
+        <div id="alertList"></div>
+    </div>
+
+    <!-- HISTORY LOG -->
+    <div class="card">
+        <div class="history-header" onclick="toggleHistory()">
+            <div class="history-title">Transaction History</div>
+            <div class="history-toggle" id="historyToggle">+ Show</div>
+        </div>
+        <div class="history-body" id="historyBody"></div>
+    </div>
+</div>
+
+<!-- EDIT HOLDINGS MODAL -->
+<div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeEditModal()">
+    <div class="modal">
+        <div class="modal-title">Edit Holdings</div>
+        <div id="editModalBody"></div>
+        <div class="modal-actions">
+            <button class="btn btn-red" onclick="closeEditModal()">Cancel</button>
+            <button class="btn btn-green" onclick="saveHoldings()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- SELL MODAL -->
+<div class="modal-overlay" id="sellModal" onclick="if(event.target===this)closeSellModal()">
+    <div class="modal">
+        <div class="modal-title" id="sellModalTitle">Sell Shares</div>
+        <div class="div-modal-info" id="sellModalInfo">Enter dollar amount to sell.</div>
+        <div class="modal-row">
+            <label>Amount $</label>
+            <input type="text" class="modal-input" id="sellAmount" placeholder="100.00" inputmode="decimal">
+        </div>
+        <div id="sellPreview" style="font-size:0.7rem; color:var(--text-dim); margin-top:0.5rem; font-weight:500;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-red" onclick="closeSellModal()">Cancel</button>
+            <button class="btn btn-green" onclick="confirmSell()">Confirm Sell</button>
+        </div>
+    </div>
+</div>
+
+<!-- DIVIDEND MODAL -->
+<div class="modal-overlay" id="divModal" onclick="if(event.target===this)closeDivModal()">
+    <div class="modal">
+        <div class="modal-title" id="divModalTitle">Log Dividend</div>
+        <div class="div-modal-info">Enter the dividend amount received. Shares will be calculated from current price.</div>
+        <div class="modal-row">
+            <label>Amount $</label>
+            <input type="text" class="modal-input" id="divAmount" placeholder="45.00" inputmode="decimal">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-red" onclick="closeDivModal()">Cancel</button>
+            <button class="btn btn-green" onclick="confirmDividend()">Log Dividend</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ====== CONFIG ======
+const API_BASE = 'https://script.google.com/macros/s/AKfycbwVwBpJsq5kybfAuo8DpvODludwPehRWeT81bRe1PftdSuYCXv90FnewvIsZtCZIUv6Cg/exec';
+const STORAGE_KEY = 'dca_portfolio_v1';
+
+// ====== PORTFOLIO DEFINITIONS ======
+const PORTFOLIOS = {
+    cushion: {
+        name: '4-Year Cushion',
+        hardCap: 108000,
+        yearlyExpense: 27000,
+        targets: {
+            JPST: { pct: 20, purpose: 'Ultra-short income' },
+            VTIP: { pct: 17, purpose: 'Inflation hedge (TIPS)' },
+            SPSB: { pct: 13, purpose: 'Short-term corporate bonds' },
+            DGRO: { pct: 13, purpose: 'Dividend growth' },
+            SCHD: { pct: 12, purpose: 'Quality dividends' },
+            SGOV: { pct: 10, purpose: 'T-bills (safest)' },
+            GLD:  { pct: 8,  purpose: 'Gold' },
+            VOO:  { pct: 7,  purpose: 'S&P 500' }
+        },
+        dividendReinvest: ['SCHD', 'DGRO', 'VOO'],
+        order: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'GLD', 'VOO']
+    },
+    growth: {
+        name: 'Lifetime Growth',
+        hardCap: 0,
+        targets: {
+            VTI:  { pct: 30, purpose: 'Total US market core' },
+            SCHG: { pct: 20, purpose: 'Large-cap growth' },
+            VXUS: { pct: 15, purpose: 'International diversification' },
+            AVUV: { pct: 12, purpose: 'Small-cap value premium' },
+            SCHD: { pct: 12, purpose: 'Dividend compounder' },
+            GDX:  { pct: 5,  purpose: 'Gold miners' },
+            SMH:  { pct: 4,  purpose: 'Semiconductors / AI' },
+            VO:   { pct: 2,  purpose: 'Mid-cap stocks' },
+            IBIT: { pct: 2,  purpose: 'Bitcoin long-term hold' }
+        },
+        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO'],
+        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO', 'IBIT']
+    },
+    ira: {
+        name: 'IRA Retirement',
+        hardCap: 0,
+        targets: {
+            SCHD: { pct: 20, purpose: 'Quality dividends' },
+            JEPI: { pct: 18, purpose: 'S&P covered calls income' },
+            JEPQ: { pct: 15, purpose: 'Nasdaq covered calls income' },
+            VNQ:  { pct: 15, purpose: 'US REITs' },
+            GLDM: { pct: 12, purpose: 'Physical gold (tax-sheltered)' },
+            BND:  { pct: 10, purpose: 'Total bond market' },
+            VTIP: { pct: 10, purpose: 'Inflation-protected bonds' }
+        },
+        dividendReinvest: ['SCHD', 'JEPI', 'JEPQ', 'VNQ', 'BND', 'VTIP'],
+        order: ['SCHD', 'JEPI', 'JEPQ', 'VNQ', 'GLDM', 'BND', 'VTIP']
+    },
+    stocks: {
+        name: 'Stock Picks',
+        hardCap: 0,
+        targets: {
+            NVDA: { pct: 12, purpose: 'AI / GPU leader' },
+            MSFT: { pct: 10, purpose: 'Cloud + AI platform' },
+            AAPL: { pct: 10, purpose: 'Consumer tech moat' },
+            AMZN: { pct: 10, purpose: 'AWS + e-commerce' },
+            GOOG: { pct: 8,  purpose: 'Search + Cloud + YouTube' },
+            META: { pct: 8,  purpose: 'Social monopoly + AI' },
+            'BRK.B': { pct: 8, purpose: 'Berkshire Hathaway' },
+            JPM:  { pct: 6,  purpose: 'Largest US bank' },
+            UNH:  { pct: 6,  purpose: 'Healthcare giant' },
+            LLY:  { pct: 6,  purpose: 'Pharma / weight loss drugs' },
+            COST: { pct: 6,  purpose: 'Membership retail moat' },
+            NFLX: { pct: 5,  purpose: 'Streaming winner' },
+            PG:   { pct: 5,  purpose: 'Consumer staples dividend king' }
+        },
+        dividendReinvest: ['MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'COST', 'PG'],
+        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK.B', 'JPM', 'UNH', 'LLY', 'COST', 'NFLX', 'PG']
+    }
+};
+
+// ETF colors for charts (softer palette for Bloom)
+const ETF_COLORS = {
+    JPST: '#7aaed4', VTIP: '#8aba96', SPSB: '#e8c870',
+    DGRO: '#e8a060', SCHD: '#e88b93', SGOV: '#b0b0b0',
+    GLD:  '#d4a843', VOO:  '#a07bc4',
+    VTI:  '#5b9bd5', SCHG: '#5cbc8a', VXUS: '#d46ba0',
+    AVUV: '#e88050', GDX:  '#d4a843', SMH:  '#50b4d8',
+    VO:   '#a070c0', IBIT: '#e8a040',
+    JEPI: '#5cbc7a', JEPQ: '#40bca0', VNQ:  '#d89040',
+    GLDM: '#e8c840', BND:  '#a0a8b0',
+    NVDA: '#8ac050', MSFT: '#50a8e8', AAPL: '#b0b4b8',
+    AMZN: '#e8a040', GOOG: '#5888e0', META: '#4070d8',
+    'BRK.B': '#6050a0', JPM: '#406088', UNH: '#405878',
+    LLY:  '#d05040', COST: '#d84050', NFLX: '#d83040',
+    PG:   '#4060b0'
+};
+
+// ====== STATE ======
+let currentPortfolio = 'cushion';
+let livePrices = {};
+let pendingDCA = null;
+let divLogTicker = '';
+
+// ====== STORAGE ======
+function loadData() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || createDefaultData();
+    } catch { return createDefaultData(); }
+}
+
+function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    syncToCloud(data);
+}
+
+// ====== CLOUD SYNC ======
+function syncToCloud(data) {
+    try {
+        const json = JSON.stringify(data);
+        const encoded = encodeURIComponent(json);
+        if (encoded.length < 7000) {
+            fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
+        } else {
+            const holdingsOnly = JSON.stringify({ portfolios: data.portfolios });
+            fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(holdingsOnly));
+        }
+    } catch (e) { console.error('Cloud sync error:', e); }
+}
+
+async function loadFromCloud() {
+    try {
+        const resp = await fetch(API_BASE + '?action=load_dca_data');
+        if (!resp.ok) return null;
+        const result = await resp.json();
+        if (result.status === 'ok' && result.data) {
+            return typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+        }
+    } catch (e) { console.error('Cloud load error:', e); }
+    return null;
+}
+
+function createDefaultData() {
+    const data = { portfolios: {}, history: [], dividendHistory: [] };
+    for (const [key, pDef] of Object.entries(PORTFOLIOS)) {
+        data.portfolios[key] = { holdings: {} };
+        for (const ticker of pDef.order) {
+            data.portfolios[key].holdings[ticker] = { shares: 0, costBasis: 0 };
+        }
+    }
+    return data;
+}
+function resetPortfolio() {
+    if (!confirm('Reset ALL portfolios to zero? This cannot be undone.')) return;
+    const data = createDefaultData();
+    saveData(data);
+    syncToCloud(data);
+    renderAll();
+}
+
+// ====== PRICE FETCHING ======
+async function refreshPrices() {
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    dot.className = 'status-dot loading';
+    txt.textContent = 'Fetching...';
+    try {
+        const resp = await fetch(API_BASE + '?action=dca_prices');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.status === 'ok' && data.etfs) {
+            data.etfs.forEach(e => { livePrices[e.ticker] = e; });
+            dot.className = 'status-dot ok';
+            txt.textContent = 'Live';
+            localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
+        } else { throw new Error(data.message || 'Bad response'); }
+    } catch (err) {
+        console.error('Price fetch error:', err);
+        try {
+            const cache = JSON.parse(localStorage.getItem('dca_prices_cache'));
+            if (cache && cache.prices) {
+                livePrices = cache.prices;
+                dot.className = 'status-dot ok';
+                const age = Math.round((Date.now() - cache.ts) / 60000);
+                txt.textContent = 'Cached (' + age + 'm ago)';
+            } else { throw new Error('No cache'); }
+        } catch {
+            dot.className = 'status-dot error';
+            txt.textContent = 'Offline';
+            document.getElementById('errorBanner').style.display = 'block';
+            document.getElementById('errorBanner').textContent = 'Could not fetch prices.';
+            Object.values(PORTFOLIOS).forEach(p => {
+                p.order.forEach(t => {
+                    if (!livePrices[t]) livePrices[t] = { ticker: t, price: 0, high52: 0, low52: 0, changePct: 0, rsi14: 50, sma50: 0, sma200: 0 };
+                });
+            });
+        }
+    }
+    renderAll();
+}
+
+function fireGet(url) { const img = new Image(); img.src = url; }
+
+// ====== GETTERS ======
+function getPortfolioDef() { return PORTFOLIOS[currentPortfolio]; }
+function getPortfolioData() {
+    const data = loadData();
+    if (!data.portfolios[currentPortfolio]) {
+        data.portfolios[currentPortfolio] = { holdings: {} };
+        getPortfolioDef().order.forEach(t => { data.portfolios[currentPortfolio].holdings[t] = { shares: 0, costBasis: 0 }; });
+        saveData(data);
+    }
+    return data.portfolios[currentPortfolio];
+}
+function getPrice(ticker) { return livePrices[ticker] ? livePrices[ticker].price : 0; }
+function getTotalValue() {
+    const pd = getPortfolioData();
+    let total = 0;
+    for (const [ticker, h] of Object.entries(pd.holdings)) total += h.shares * getPrice(ticker);
+    return total;
+}
+function getTotalInvested() {
+    const pd = getPortfolioData();
+    let total = 0;
+    for (const h of Object.values(pd.holdings)) total += h.costBasis;
+    return total;
+}
+function getCash() {
+    const data = loadData();
+    if (!data.cash) data.cash = {};
+    return data.cash[currentPortfolio] || 0;
+}
+function addCash(amount) {
+    const data = loadData();
+    if (!data.cash) data.cash = {};
+    data.cash[currentPortfolio] = (data.cash[currentPortfolio] || 0) + amount;
+    saveData(data);
+}
+function spendCash(amount) {
+    const data = loadData();
+    if (!data.cash) data.cash = {};
+    const available = data.cash[currentPortfolio] || 0;
+    const spent = Math.min(amount, available);
+    data.cash[currentPortfolio] = available - spent;
+    saveData(data);
+    return spent;
+}
+function getTotalDividends() {
+    const data = loadData();
+    let total = 0;
+    data.dividendHistory.filter(d => d.portfolio === currentPortfolio).forEach(d => { total += d.amount; });
+    return total;
+}
+function fmt(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtPct(n) { return n.toFixed(1) + '%'; }
+
+// ====== STOCK PICKS BUY ALERT (visible on every tab) ======
+function renderStockOppsBanner() {
+    const banner = document.getElementById('stockOppsBanner');
+    const pDef = PORTFOLIOS.stocks;
+    let count = 0;
+    const tickers = [];
+    pDef.order.forEach(ticker => {
+        if (dismissedOpps.has(ticker)) return;
+        const valScore = calcValuationScore(ticker);
+        const price = getPrice(ticker);
+        if (valScore >= 0.70 && price > 0) {
+            count++;
+            tickers.push(ticker);
+        }
+    });
+    if (count > 0) {
+        banner.textContent = count + ' Stock Pick' + (count === 1 ? '' : 's') + ' to Buy';
+        banner.classList.add('show');
+    } else {
+        banner.classList.remove('show');
+    }
+}
+
+// ====== RENDER ALL ======
+function renderAll() {
+    renderStockOppsBanner();
+    renderBuyOpps();
+    renderProgress();
+    renderStats();
+    renderETFGrid();
+    renderAlerts();
+    renderHistory();
+    renderPieChart();
+    renderGrowthChart();
+    // Reapply card gradient after ETF grid rebuild
+    const theme = THEMES[currentPortfolio] || THEMES.cushion;
+    document.querySelectorAll('.etf-card').forEach(c => { c.style.background = theme.cardGrad; });
+}
+
+// ====== BUY OPPORTUNITIES ======
+const dismissedOpps = new Set();
+
+function dismissOpp(ticker) {
+    dismissedOpps.add(ticker);
+    renderBuyOpps();
+    renderStockOppsBanner();
+}
+
+function renderBuyOpps() {
+    const pDef = getPortfolioDef();
+    const section = document.getElementById('buyOpps');
+    const grid = document.getElementById('buyOppsGrid');
+    if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
+    const opps = [];
+    pDef.order.forEach(ticker => {
+        if (dismissedOpps.has(ticker)) return;
+        const valScore = calcValuationScore(ticker);
+        const p = livePrices[ticker] || {};
+        const price = p.price || 0;
+        const high52 = p.high52 || 0;
+        if (valScore >= 0.70 && price > 0) {
+            const drawdown = high52 > 0 ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
+            opps.push({ ticker, valScore, rsi: p.rsi14 || 50, price, drawdown, purpose: pDef.targets[ticker].purpose });
+        }
+    });
+    if (opps.length === 0) { section.classList.remove('show'); return; }
+    section.classList.add('show');
+    grid.innerHTML = opps.sort((a, b) => b.valScore - a.valScore).map(o => `
+        <div class="buy-opp-card" style="position:relative;">
+            <div onclick="dismissOpp('${o.ticker}')" style="position:absolute; top:4px; right:8px; cursor:pointer; font-size:1.1rem; color:var(--text-dim); line-height:1;">&times;</div>
+            <div class="buy-opp-ticker">${o.ticker}</div>
+            <div style="font-size:0.55rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${o.purpose}</div>
+            <div class="buy-opp-price">${fmt(o.price)}</div>
+            <div class="buy-opp-stats">
+                RSI <span>${o.rsi.toFixed(0)}</span> &bull;
+                ${o.drawdown > 0 ? o.drawdown + '% off high' : ''} &bull;
+                Score <span>${(o.valScore * 100).toFixed(0)}</span>
+            </div>
+            <div style="display:flex; gap:4px; margin-top:0.5rem;">
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 10)">$10</button>
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 20)">$20</button>
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 50)">$50</button>
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuyCustom('${o.ticker}')">$?</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function quickBuy(ticker, amount) {
+    const price = getPrice(ticker);
+    if (price <= 0) return;
+    const shares = amount / price;
+    const data = loadData();
+    const pd = data.portfolios[currentPortfolio];
+    if (!pd.holdings) pd.holdings = {};
+    if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0 };
+    pd.holdings[ticker].shares += shares;
+    pd.holdings[ticker].costBasis += amount;
+    if (!data.cash) data.cash = {};
+    const cashAvail = data.cash[currentPortfolio] || 0;
+    const fromCash = Math.min(amount, cashAvail);
+    if (fromCash > 0) data.cash[currentPortfolio] = cashAvail - fromCash;
+    data.history.push({ id: 'buy_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
+    saveData(data);
+    renderAll();
+}
+
+function quickBuyCustom(ticker) {
+    const amount = prompt('Buy ' + ticker + ' — Enter dollar amount:');
+    if (!amount) return;
+    const val = parseFloat(amount.replace(/,/g, ''));
+    if (val > 0) quickBuy(ticker, val);
+}
+
+// ====== PROGRESS BAR ======
+function renderProgress() {
+    const pDef = getPortfolioDef();
+    const totalVal = getTotalValue();
+    const cap = pDef.hardCap;
+    document.getElementById('progressTitle').textContent = pDef.name;
+    document.getElementById('progressAmount').textContent = fmt(totalVal);
+    if (cap > 0) {
+        const pct = Math.min(100, totalVal / cap * 100);
+        document.getElementById('progressRemaining').textContent = fmt(Math.max(0, cap - totalVal)) + ' remaining';
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressPct').textContent = fmtPct(pct) + ' funded';
+        document.getElementById('fundedBanner').style.display = totalVal >= cap ? 'block' : 'none';
+    } else {
+        const milestones = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+        const nextM = milestones.find(m => m > totalVal) || totalVal * 2;
+        const prevM = milestones.filter(m => m <= totalVal).pop() || 0;
+        const pct = nextM > 0 ? Math.min(100, ((totalVal - prevM) / (nextM - prevM)) * 100) : 0;
+        document.getElementById('progressRemaining').textContent = fmt(nextM - totalVal) + ' to next milestone (' + fmt(nextM) + ')';
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressPct').textContent = 'No cap — continuous growth';
+        document.getElementById('fundedBanner').style.display = 'none';
+    }
+}
+
+// ====== STATS BAR ======
+function renderStats() {
+    const totalVal = getTotalValue();
+    const totalInv = getTotalInvested();
+    const totalRet = totalVal - totalInv;
+    document.getElementById('statTotalValue').textContent = fmt(totalVal);
+    document.getElementById('statTotalInvested').textContent = fmt(totalInv);
+    const retEl = document.getElementById('statTotalReturn');
+    retEl.textContent = (totalRet >= 0 ? '+' : '') + fmt(totalRet);
+    retEl.className = 'stat-value ' + (totalRet >= 0 ? 'green' : 'red');
+    document.getElementById('statDividends').textContent = fmt(getTotalDividends());
+    const cash = getCash();
+    const isStocks = currentPortfolio === 'stocks';
+    document.getElementById('statCash').textContent = fmt(cash);
+    document.getElementById('statCash').parentElement.style.display = isStocks ? '' : 'none';
+    // Special 5th stat per portfolio
+    const special = document.getElementById('statSpecial');
+    const specialLabel = document.getElementById('statSpecialLabel');
+    const specialValue = document.getElementById('statSpecialValue');
+    if (currentPortfolio === 'cushion') {
+        special.style.display = '';
+        specialLabel.textContent = 'Years Covered';
+        const years = totalVal / (getPortfolioDef().yearlyExpense || 27000);
+        specialValue.textContent = years.toFixed(1) + ' yrs';
+        specialValue.style.color = 'var(--rose-deep)';
+    } else if (currentPortfolio === 'ira') {
+        special.style.display = '';
+        specialLabel.textContent = 'Monthly Income';
+        specialValue.textContent = '$0';
+        specialValue.style.color = 'var(--rose-deep)';
+    } else if (currentPortfolio === 'growth') {
+        special.style.display = '';
+        specialLabel.textContent = 'Best Performer';
+        specialValue.style.cssText = 'color:var(--rose-deep);';
+        const pDef = getPortfolioDef();
+        const data = getData();
+        const holdings = data.portfolios[currentPortfolio]?.holdings || {};
+        let bestTicker = '-', bestPct = -Infinity;
+        pDef.order.forEach(t => {
+            const h = holdings[t];
+            if (h && h.shares > 0 && h.costBasis > 0) {
+                const price = (livePrices[t]?.price || 0);
+                const pnlPct = ((price * h.shares - h.costBasis) / h.costBasis) * 100;
+                if (pnlPct > bestPct) { bestPct = pnlPct; bestTicker = t; }
+            }
+        });
+        specialValue.textContent = bestPct > -Infinity ? bestTicker + ' +' + bestPct.toFixed(1) + '%' : '-';
+        if (bestPct >= 0) specialValue.style.color = 'var(--leaf)';
+        else if (bestPct > -Infinity) specialValue.style.color = 'var(--red)';
+    } else {
+        special.style.display = 'none';
+    }
+    const cashInfo = document.getElementById('dcaCashInfo');
+    const cashCheckbox = document.getElementById('dcaUseCash').parentElement;
+    if (isStocks) {
+        if (cash > 0) {
+            cashInfo.textContent = 'Cash: ' + fmt(cash);
+            cashInfo.style.color = 'var(--rose-deep)';
+            cashCheckbox.style.display = '';
+        } else {
+            cashInfo.textContent = '';
+            cashCheckbox.style.display = '';
+        }
+    } else {
+        cashInfo.textContent = '';
+        cashCheckbox.style.display = 'none';
+        document.getElementById('dcaUseCash').checked = false;
+    }
+}
+
+// ====== ETF GRID ======
+function renderETFGrid() {
+    const pDef = getPortfolioDef();
+    const pd = getPortfolioData();
+    const totalVal = getTotalValue();
+    const grid = document.getElementById('etfGrid');
+    grid.innerHTML = '';
+    pDef.order.forEach(ticker => {
+        const target = pDef.targets[ticker];
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        const price = getPrice(ticker);
+        const value = h.shares * price;
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const targetPct = target.pct;
+        const pInfo = livePrices[ticker] || {};
+        const changePct = pInfo.changePct || 0;
+        const rsi = pInfo.rsi14 || 50;
+        const costBasis = h.costBasis || 0;
+        const unrealizedPnL = value - costBasis;
+        const targetDollar = pDef.hardCap > 0 ? pDef.hardCap * targetPct / 100 : totalVal * targetPct / 100;
+        const barPct = targetDollar > 0 ? Math.min(100, value / targetDollar * 100) : 0;
+        const valScore = calcValuationScore(ticker);
+        const scoreClass = valScore > 0.6 ? 'score-good' : valScore > 0.3 ? 'score-ok' : 'score-bad';
+        const scoreLabel = valScore > 0.6 ? 'Undervalued' : valScore > 0.3 ? 'Fair' : 'Overvalued';
+        const drift = currentPct - targetPct;
+        const barClass = Math.abs(drift) < 3 ? 'on' : drift > 0 ? 'over' : 'under';
+        const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
+        const changeStr = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
+        const isDivETF = pDef.dividendReinvest.includes(ticker);
+        const isBuyOpp = valScore >= 0.70 && price > 0;
+        const pnlPct = costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0;
+        const isTakeProfit = pnlPct >= 50 && valScore < 0.30;
+        const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
+        const trimAmount = isDriftHigh ? value - (totalVal * targetPct / 100) : 0;
+        let badgesHtml = '';
+        if (isBuyOpp) badgesHtml += '<span class="badge-buy-opp">Buy Opportunity</span> ';
+        if (isTakeProfit) badgesHtml += '<span class="badge-take-profit">Take Profit (' + pnlPct.toFixed(0) + '%)</span> ';
+        if (isDriftHigh) badgesHtml += '<span class="badge-take-profit">Trim ' + fmt(trimAmount) + '</span> ';
+        const card = document.createElement('div');
+        card.className = 'etf-card';
+        card.innerHTML = `
+            <div class="etf-ticker">${ticker}</div>
+            <div class="etf-purpose">${target.purpose}</div>
+            ${badgesHtml ? '<div style="margin-bottom:0.5rem;">' + badgesHtml + '</div>' : ''}
+            <div class="etf-price-row">
+                <div class="etf-price">${price > 0 ? fmt(price) : '--'}</div>
+                <div class="etf-change ${changeClass}">${price > 0 ? changeStr : '--'}</div>
+            </div>
+            <div class="etf-alloc-row">
+                <span>Target: ${targetPct}%${pDef.hardCap > 0 ? ' (' + fmt(targetDollar) + ')' : ''}</span>
+                <span>Actual: ${fmtPct(currentPct)}</span>
+            </div>
+            <div class="etf-bar-outer">
+                <div class="etf-bar-inner ${barClass}" style="width:${barPct}%"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="etf-score ${scoreClass}">${scoreLabel} (${(valScore * 100).toFixed(0)})</span>
+                <span style="font-size:0.6rem; color:var(--text-dim); font-weight:600;">RSI ${rsi.toFixed(0)}</span>
+            </div>
+            <div class="etf-details">
+                <span class="etf-detail-label">Shares</span>
+                <span class="etf-detail-value">${h.shares.toFixed(4)}</span>
+                <span class="etf-detail-label">Value</span>
+                <span class="etf-detail-value">${fmt(value)}</span>
+                <span class="etf-detail-label">Cost Basis</span>
+                <span class="etf-detail-value">${fmt(costBasis)}</span>
+                <span class="etf-detail-label">P&L</span>
+                <span class="etf-detail-value" style="color:${unrealizedPnL >= 0 ? 'var(--leaf)' : 'var(--red)'}">${(unrealizedPnL >= 0 ? '+' : '') + fmt(unrealizedPnL)}</span>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+                ${isDivETF ? `<button class="btn btn-green etf-div-btn" onclick="openDivModal('${ticker}')">Log Dividend</button>` : ''}
+                ${h.shares > 0 ? `<button class="btn btn-red etf-sell-btn" onclick="openSellModal('${ticker}')">Sell</button>` : ''}
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+// ====== VALUATION SCORING ======
+function calcValuationScore(ticker) {
+    const p = livePrices[ticker];
+    if (!p || !p.price) return 0.5;
+    const rsi = p.rsi14 || 50;
+    const rsiScore = Math.max(0, Math.min(1, (70 - rsi) / 40));
+    let maScore = 0.5;
+    if (p.sma50 > 0 && p.sma200 > 0) {
+        const avgDist = ((p.sma50 - p.price) / p.sma50 + (p.sma200 - p.price) / p.sma200) / 2;
+        maScore = Math.max(0, Math.min(1, 0.5 + avgDist * 10));
+    }
+    let drawdownScore = 0.5;
+    if (p.high52 > 0) drawdownScore = Math.max(0, Math.min(1, ((p.high52 - p.price) / p.high52) * 5));
+    return rsiScore * 0.35 + maScore * 0.35 + drawdownScore * 0.30;
+}
+
+// ====== SMART DCA ALGORITHM ======
+function previewDCA() {
+    const newMoney = parseFloat(document.getElementById('dcaAmount').value.replace(/,/g, '')) || 0;
+    const useCash = document.getElementById('dcaUseCash').checked;
+    const cashToUse = useCash ? getCash() : 0;
+    const investAmount = newMoney + cashToUse;
+    if (investAmount <= 0) return;
+    const pDef = getPortfolioDef();
+    const pd = getPortfolioData();
+    const totalVal = getTotalValue();
+    const cap = pDef.hardCap;
+    let effectiveAmount = investAmount;
+    if (cap > 0) {
+        effectiveAmount = Math.min(investAmount, Math.max(0, cap - totalVal));
+        if (effectiveAmount <= 0) {
+            document.getElementById('dcaSummary').textContent = 'Portfolio at cap. No more DCA needed.';
+            document.getElementById('dcaPreview').style.display = 'block';
+            document.getElementById('dcaTableBody').innerHTML = '';
+            return;
+        }
+    }
+    const etfScores = [];
+    pDef.order.forEach(ticker => {
+        const target = pDef.targets[ticker];
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        const value = h.shares * getPrice(ticker);
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const gapScore = Math.max(0, target.pct - currentPct) / 100;
+        const valScore = calcValuationScore(ticker);
+        const composite = gapScore * 0.55 + valScore * 0.45;
+        etfScores.push({ ticker, gapScore, valScore, composite, currentPct, targetPct: target.pct, aboveTarget: currentPct >= target.pct + 1 });
+    });
+    const eligible = etfScores.filter(e => !e.aboveTarget);
+    const totalComposite = eligible.reduce((s, e) => s + e.composite, 0);
+    eligible.forEach(e => { e.rawAlloc = totalComposite > 0 ? effectiveAmount * (e.composite / totalComposite) : effectiveAmount / eligible.length; });
+    const maxSingle = effectiveAmount * (cap > 0 ? 0.40 : 0.45);
+    let overflow = 0;
+    eligible.forEach(e => { if (e.rawAlloc > maxSingle) { overflow += e.rawAlloc - maxSingle; e.rawAlloc = maxSingle; e.capped = true; } });
+    if (overflow > 0) {
+        const uncapped = eligible.filter(e => !e.capped);
+        const uncTotal = uncapped.reduce((s, e) => s + e.composite, 0);
+        uncapped.forEach(e => { e.rawAlloc += uncTotal > 0 ? overflow * (e.composite / uncTotal) : overflow / uncapped.length; });
+    }
+    let dust = 0;
+    eligible.forEach(e => { if (e.rawAlloc < 1 && e.rawAlloc > 0) { dust += e.rawAlloc; e.rawAlloc = 0; } });
+    let safety = 0;
+    while (dust > 0 && safety < 20) {
+        safety++;
+        const active = eligible.filter(e => e.rawAlloc >= 1);
+        if (active.length === 0) { eligible.reduce((a, b) => a.composite > b.composite ? a : b).rawAlloc = effectiveAmount; dust = 0; break; }
+        const actTotal = active.reduce((s, e) => s + e.composite, 0);
+        active.forEach(e => { e.rawAlloc += actTotal > 0 ? dust * (e.composite / actTotal) : dust / active.length; });
+        dust = 0;
+        eligible.forEach(e => { if (e.rawAlloc > 0 && e.rawAlloc < 1) { dust += e.rawAlloc; e.rawAlloc = 0; } });
+    }
+    eligible.forEach(e => { e.rawAlloc = Math.round(e.rawAlloc * 100) / 100; });
+    const allAlloc = etfScores.map(e => {
+        const found = eligible.find(x => x.ticker === e.ticker);
+        return { ticker: e.ticker, gapScore: e.gapScore, valScore: e.valScore, composite: e.composite, amount: found ? found.rawAlloc : 0, shares: getPrice(e.ticker) > 0 ? ((found ? found.rawAlloc : 0) / getPrice(e.ticker)) : 0, price: getPrice(e.ticker) };
+    });
+    pendingDCA = { totalAmount: effectiveAmount, allocations: allAlloc, cashUsed: cashToUse };
+    const maxComp = Math.max(...etfScores.map(e => e.composite), 0.01);
+    const tbody = document.getElementById('dcaTableBody');
+    tbody.innerHTML = '';
+    allAlloc.forEach(a => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="color:var(--red); font-weight:700;">${a.ticker}</td>
+            <td>${(a.gapScore * 100).toFixed(0)}</td>
+            <td>${(a.valScore * 100).toFixed(0)}</td>
+            <td>${(a.composite * 100).toFixed(0)}</td>
+            <td class="alloc-amount">${a.amount > 0 ? fmt(a.amount) : '--'}</td>
+            <td class="alloc-bar-cell"><div class="alloc-bar-outer"><div class="alloc-bar-inner" style="width:${(a.composite / maxComp * 100).toFixed(0)}%"></div></div></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    let summaryText = `Total: ${fmt(allAlloc.reduce((s, a) => s + a.amount, 0))}`;
+    if (cashToUse > 0 && newMoney > 0) summaryText += ` (${fmt(newMoney)} new + ${fmt(cashToUse)} cash)`;
+    else if (cashToUse > 0) summaryText += ' (from cash)';
+    if (effectiveAmount < investAmount) summaryText += ` — capped to ${fmt(effectiveAmount)}`;
+    document.getElementById('dcaSummary').textContent = summaryText;
+    document.getElementById('dcaPreview').style.display = 'block';
+}
+
+function cancelDCA() { pendingDCA = null; document.getElementById('dcaPreview').style.display = 'none'; }
+
+function confirmDCA() {
+    if (!pendingDCA) return;
+    const data = loadData();
+    const pd = data.portfolios[currentPortfolio];
+    if (!pd.holdings) pd.holdings = {};
+    pendingDCA.allocations.forEach(a => {
+        if (a.amount <= 0) return;
+        if (!pd.holdings[a.ticker]) pd.holdings[a.ticker] = { shares: 0, costBasis: 0 };
+        pd.holdings[a.ticker].shares += a.shares;
+        pd.holdings[a.ticker].costBasis += a.amount;
+    });
+    data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: pendingDCA.totalAmount, type: 'dca', allocations: pendingDCA.allocations.filter(a => a.amount > 0).map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
+    if (pendingDCA.cashUsed > 0) { if (!data.cash) data.cash = {}; data.cash[currentPortfolio] = Math.max(0, (data.cash[currentPortfolio] || 0) - pendingDCA.cashUsed); }
+    saveData(data);
+    pendingDCA = null;
+    document.getElementById('dcaPreview').style.display = 'none';
+    document.getElementById('dcaAmount').value = '';
+    renderAll();
+}
+
+// ====== DIVIDEND LOGGING ======
+function openDivModal(ticker) { divLogTicker = ticker; document.getElementById('divModalTitle').textContent = 'Log Dividend — ' + ticker; document.getElementById('divAmount').value = ''; document.getElementById('divModal').classList.add('show'); }
+function closeDivModal() { document.getElementById('divModal').classList.remove('show'); divLogTicker = ''; }
+function confirmDividend() {
+    const amount = parseFloat(document.getElementById('divAmount').value.replace(/,/g, ''));
+    if (!amount || amount <= 0 || !divLogTicker) return;
+    const price = getPrice(divLogTicker);
+    const shares = price > 0 ? amount / price : 0;
+    const data = loadData();
+    const pd = data.portfolios[currentPortfolio];
+    if (!pd.holdings[divLogTicker]) pd.holdings[divLogTicker] = { shares: 0, costBasis: 0 };
+    pd.holdings[divLogTicker].shares += shares;
+    pd.holdings[divLogTicker].costBasis += amount;
+    data.dividendHistory.push({ id: 'div_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, ticker: divLogTicker, amount, shares, price });
+    saveData(data);
+    closeDivModal();
+    renderAll();
+}
+
+// ====== SELL MODAL ======
+let sellTicker = '';
+function openSellModal(ticker) {
+    sellTicker = ticker;
+    const pd = getPortfolioData();
+    const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+    const price = getPrice(ticker);
+    const value = h.shares * price;
+    const avgCost = h.shares > 0 ? h.costBasis / h.shares : 0;
+    document.getElementById('sellModalTitle').textContent = 'Sell ' + ticker;
+    document.getElementById('sellModalInfo').textContent = 'You own ' + h.shares.toFixed(4) + ' shares (' + fmt(value) + ') at avg cost ' + fmt(avgCost) + '/share.';
+    document.getElementById('sellAmount').value = '';
+    document.getElementById('sellPreview').textContent = '';
+    document.getElementById('sellModal').classList.add('show');
+    document.getElementById('sellAmount').oninput = function() {
+        const amt = parseFloat(this.value.replace(/,/g, '')) || 0;
+        if (amt <= 0 || price <= 0) { document.getElementById('sellPreview').textContent = ''; return; }
+        const sharesToSell = amt / price;
+        const profit = amt - sharesToSell * avgCost;
+        document.getElementById('sellPreview').innerHTML = 'Selling ' + sharesToSell.toFixed(4) + ' shares @ ' + fmt(price) + ' — Profit: <span style="color:' + (profit >= 0 ? 'var(--leaf)' : 'var(--red)') + ';">' + (profit >= 0 ? '+' : '') + fmt(profit) + '</span>';
+    };
+}
+function closeSellModal() { document.getElementById('sellModal').classList.remove('show'); sellTicker = ''; }
+function confirmSell() {
+    const amount = parseFloat(document.getElementById('sellAmount').value.replace(/,/g, ''));
+    if (!amount || amount <= 0 || !sellTicker) return;
+    const price = getPrice(sellTicker);
+    if (price <= 0) return;
+    const sharesToSell = amount / price;
+    const data = loadData();
+    const pd = data.portfolios[currentPortfolio];
+    const h = pd.holdings[sellTicker];
+    if (!h || h.shares < sharesToSell) { alert('Not enough shares'); return; }
+    const avgCost = h.shares > 0 ? h.costBasis / h.shares : 0;
+    const profit = amount - sharesToSell * avgCost;
+    h.shares -= sharesToSell;
+    h.costBasis -= sharesToSell * avgCost;
+    if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
+    data.history.push({ id: 'sell_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'sell', ticker: sellTicker, shares: sharesToSell, price, profit });
+    if (!data.cash) data.cash = {};
+    data.cash[currentPortfolio] = (data.cash[currentPortfolio] || 0) + amount;
+    saveData(data);
+    closeSellModal();
+    renderAll();
+}
+
+// ====== EDIT HOLDINGS MODAL ======
+function openEditModal() {
+    const pDef = getPortfolioDef();
+    const pd = getPortfolioData();
+    const body = document.getElementById('editModalBody');
+    body.innerHTML = '';
+    pDef.order.forEach(ticker => {
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        const row = document.createElement('div');
+        row.className = 'modal-row';
+        row.innerHTML = `<label>${ticker}</label><input type="text" class="modal-input" id="edit_shares_${ticker}" value="${h.shares.toFixed(4)}" inputmode="decimal"><span style="font-size:0.6rem; color:var(--text-dim); font-weight:500;">shares</span><input type="text" class="modal-input" id="edit_cost_${ticker}" value="${h.costBasis.toFixed(2)}" inputmode="decimal"><span style="font-size:0.6rem; color:var(--text-dim); font-weight:500;">cost $</span>`;
+        body.appendChild(row);
+    });
+    document.getElementById('editModal').classList.add('show');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
+function saveHoldings() {
+    const pDef = getPortfolioDef();
+    const data = loadData();
+    if (!data.portfolios[currentPortfolio]) data.portfolios[currentPortfolio] = { holdings: {} };
+    const pd = data.portfolios[currentPortfolio];
+    pDef.order.forEach(ticker => {
+        pd.holdings[ticker] = {
+            shares: parseFloat(document.getElementById('edit_shares_' + ticker).value.replace(/,/g, '')) || 0,
+            costBasis: parseFloat(document.getElementById('edit_cost_' + ticker).value.replace(/,/g, '')) || 0
+        };
+    });
+    saveData(data);
+    closeEditModal();
+    renderAll();
+}
+
+// ====== ALERTS ======
+function renderAlerts() {
+    const pDef = getPortfolioDef();
+    const pd = getPortfolioData();
+    const totalVal = getTotalValue();
+    const alerts = [];
+    if (pDef.hardCap > 0 && totalVal >= pDef.hardCap) alerts.push('Portfolio fully funded at ' + fmt(totalVal));
+    pDef.order.forEach(ticker => {
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        const price = getPrice(ticker);
+        const value = h.shares * price;
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const targetPct = pDef.targets[ticker].pct;
+        const drift = Math.abs(currentPct - targetPct);
+        const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
+        if (drift > 10 && totalVal > 1000) {
+            if (currentPct >= targetPct * 2) {
+                const trimAmt = value - (totalVal * targetPct / 100);
+                alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Trim ${fmt(trimAmt)}</strong>`);
+            } else {
+                alerts.push(`${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)`);
+            }
+        }
+        if (pnlPct >= 50 && calcValuationScore(ticker) < 0.30 && value > 100) {
+            alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — consider taking profits`);
+        }
+    });
+    const section = document.getElementById('alertSection');
+    const list = document.getElementById('alertList');
+    if (alerts.length > 0) { section.style.display = 'block'; list.innerHTML = alerts.map(a => `<div class="alert-item">${a}</div>`).join(''); }
+    else { section.style.display = 'none'; }
+}
+
+// ====== HISTORY ======
+function toggleHistory() {
+    const body = document.getElementById('historyBody');
+    const toggle = document.getElementById('historyToggle');
+    body.classList.toggle('open');
+    toggle.textContent = body.classList.contains('open') ? '- Hide' : '+ Show';
+}
+function renderHistory() {
+    const data = loadData();
+    const body = document.getElementById('historyBody');
+    const entries = [];
+    data.history.filter(h => h.portfolio === currentPortfolio).forEach(h => {
+        const dateStr = new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+        if (h.type === 'sell') {
+            entries.push({ date: new Date(h.date), dateStr, detail: 'Sold ' + h.ticker + ' (' + h.shares.toFixed(4) + ' @ ' + fmt(h.price) + ')', amount: fmt(h.totalAmount), type: 'sell' });
+        } else {
+            const detail = h.allocations ? h.allocations.map(a => a.ticker + ' ' + fmt(a.amount)).join(', ') : 'DCA';
+            entries.push({ date: new Date(h.date), dateStr, detail, amount: fmt(h.totalAmount), type: 'dca' });
+        }
+    });
+    data.dividendHistory.filter(d => d.portfolio === currentPortfolio).forEach(d => {
+        entries.push({ date: new Date(d.date), dateStr: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), detail: d.ticker + ' dividend', amount: fmt(d.amount), type: 'div' });
+    });
+    entries.sort((a, b) => b.date - a.date);
+    if (entries.length === 0) { body.innerHTML = '<div style="font-size:0.7rem; color:var(--text-dim); padding:0.5rem 0; font-weight:500;">No transactions yet.</div>'; return; }
+    body.innerHTML = entries.map(e => `
+        <div class="history-item">
+            <div><span class="history-date">${e.dateStr}</span> <span class="history-type ${e.type}">${e.type === 'dca' ? 'DCA' : e.type === 'sell' ? 'SELL' : 'DIV'}</span></div>
+            <div class="history-detail">${e.detail}</div>
+            <div class="history-amount">${e.amount}</div>
+        </div>
+    `).join('');
+}
+
+// ====== PIE CHART ======
+function renderPieChart() {
+    const canvas = document.getElementById('pieChart');
+    const ctx = canvas.getContext('2d');
+    const pDef = getPortfolioDef();
+    const pd = getPortfolioData();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cx = canvas.width / 2, cy = canvas.height / 2, r = Math.min(cx, cy) - 10;
+    const slices = pDef.order.map(t => ({ ticker: t, value: (pd.holdings[t] || { shares: 0 }).shares * getPrice(t), color: ETF_COLORS[t] || '#ccc' }));
+    const total = slices.reduce((s, sl) => s + sl.value, 0);
+    if (total <= 0) {
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = '#f8f0f0'; ctx.fill();
+        ctx.fillStyle = '#5a4e4e'; ctx.font = '600 14px Quicksand'; ctx.textAlign = 'center'; ctx.fillText('No holdings yet', cx, cy + 4);
+        document.getElementById('pieLegend').innerHTML = pDef.order.map(t => `<div class="pie-legend-item"><div class="pie-legend-dot" style="background:${ETF_COLORS[t]}"></div><span>${t}</span><span style="color:var(--text-dim);">${pDef.targets[t].pct}%</span></div>`).join('');
+        return;
+    }
+    let startAngle = -Math.PI / 2;
+    slices.forEach(sl => {
+        if (sl.value <= 0) return;
+        const sliceAngle = (sl.value / total) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, startAngle, startAngle + sliceAngle); ctx.closePath();
+        ctx.fillStyle = sl.color; ctx.fill();
+        ctx.strokeStyle = '#fef9f5'; ctx.lineWidth = 2; ctx.stroke();
+        startAngle += sliceAngle;
+    });
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2); ctx.fillStyle = '#fef9f5'; ctx.fill();
+    ctx.fillStyle = '#3a3a3a'; ctx.font = 'bold 13px Quicksand'; ctx.textAlign = 'center'; ctx.fillText(fmt(total), cx, cy + 5);
+    document.getElementById('pieLegend').innerHTML = slices.map(sl => {
+        const pct = total > 0 ? (sl.value / total * 100) : 0;
+        return `<div class="pie-legend-item"><div class="pie-legend-dot" style="background:${sl.color}"></div><span>${sl.ticker}</span><span style="color:var(--text-dim);">${fmtPct(pct)}</span></div>`;
+    }).join('');
+}
+
+// ====== GROWTH CHART ======
+function renderGrowthChart() {
+    const canvas = document.getElementById('growthChart');
+    const ctx = canvas.getContext('2d');
+    const data = loadData();
+    const dcaEntries = data.history.filter(h => h.portfolio === currentPortfolio).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const divEntries = data.dividendHistory.filter(d => d.portfolio === currentPortfolio).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const timeline = [];
+    let runI = 0, runD = 0;
+    dcaEntries.forEach(e => { runI += e.totalAmount; timeline.push({ date: new Date(e.date), invested: runI, total: runI + runD }); });
+    divEntries.forEach(e => { runD += e.amount; timeline.push({ date: new Date(e.date), invested: runI, total: runI + runD }); });
+    const currentVal = getTotalValue();
+    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: runI, total: currentVal });
+    timeline.sort((a, b) => a.date - b.date);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const w = canvas.width, h = canvas.height;
+    const pad = { top: 10, right: 10, bottom: 25, left: 50 };
+    if (timeline.length < 2) {
+        ctx.fillStyle = '#5a4e4e'; ctx.font = '600 14px Quicksand'; ctx.textAlign = 'center';
+        ctx.fillText('Make 2+ contributions to see growth', w / 2, h / 2);
+        return;
+    }
+    const maxVal = Math.max(...timeline.map(t => Math.max(t.total, t.invested)));
+    const minDate = timeline[0].date.getTime(), maxDate = timeline[timeline.length - 1].date.getTime(), dateRange = maxDate - minDate || 1;
+    const plotW = w - pad.left - pad.right, plotH = h - pad.top - pad.bottom;
+    function x(d) { return pad.left + ((d.getTime() - minDate) / dateRange) * plotW; }
+    function y(v) { return pad.top + plotH - (maxVal > 0 ? (v / maxVal) * plotH : 0); }
+    // Grid
+    ctx.strokeStyle = '#f0e0e0'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+        const yy = pad.top + (plotH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(w - pad.right, yy); ctx.stroke();
+        ctx.fillStyle = '#9a8e8e'; ctx.font = '600 9px Quicksand'; ctx.textAlign = 'right';
+        ctx.fillText('$' + (maxVal * (1 - i / 4) / 1000).toFixed(1) + 'k', pad.left - 4, yy + 3);
+    }
+    // Cost basis line
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = '#c0b0b0'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(x(t.date), y(t.invested)) : ctx.lineTo(x(t.date), y(t.invested)); }); ctx.stroke(); ctx.setLineDash([]);
+    // Value line
+    ctx.strokeStyle = '#e88b93'; ctx.lineWidth = 2;
+    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(x(t.date), y(t.total)) : ctx.lineTo(x(t.date), y(t.total)); }); ctx.stroke();
+    // Fill
+    ctx.globalAlpha = 0.12; ctx.fillStyle = '#e88b93';
+    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(x(t.date), y(t.total)) : ctx.lineTo(x(t.date), y(t.total)); });
+    ctx.lineTo(x(timeline[timeline.length - 1].date), y(0)); ctx.lineTo(x(timeline[0].date), y(0)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+    // Dates
+    ctx.fillStyle = '#9a8e8e'; ctx.font = '600 8px Quicksand'; ctx.textAlign = 'center';
+    ctx.fillText(timeline[0].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), x(timeline[0].date), h - 4);
+    ctx.fillText(timeline[timeline.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), x(timeline[timeline.length - 1].date), h - 4);
+    document.getElementById('growthLabel').innerHTML = '<span style="color:#e88b93;">&#x25CF;</span> Portfolio Value &nbsp; <span style="color:#c0b0b0;">- - -</span> Cost Basis';
+}
+
+// ====== WEEKLY DCA SPLITTER ======
+const SPLITTER_KEY = 'dca_splitter_ratios';
+const DEFAULT_RATIOS = { cushion: 50, growth: 40, ira: 0, stocks: 10 };
+let pendingSplitter = null;
+function loadSplitterRatios() { try { return JSON.parse(localStorage.getItem(SPLITTER_KEY)) || { ...DEFAULT_RATIOS }; } catch { return { ...DEFAULT_RATIOS }; } }
+function saveSplitterRatios(ratios) { localStorage.setItem(SPLITTER_KEY, JSON.stringify(ratios)); }
+function toggleSplitter() {
+    const body = document.getElementById('splitterBody');
+    body.classList.toggle('open');
+    document.getElementById('splitterToggle').textContent = body.classList.contains('open') ? '- Hide' : '+ Show';
+    if (body.classList.contains('open')) renderSplitterRows();
+}
+function renderSplitterRows() {
+    const ratios = loadSplitterRatios();
+    const notes = { cushion: '$108K cap, safety net', growth: 'Long-term compounding', ira: 'Max $7K/yr ($135/wk)', stocks: 'Opportunity-based picks' };
+    const themeDollarColor = { cushion: '#e88b93', growth: '#c4703a', ira: '#ff8c00', stocks: '#ff8c00' };
+    const dollarColor = themeDollarColor[currentPortfolio] || '#ff8c00';
+    document.getElementById('splitterRows').innerHTML = ['cushion', 'growth', 'ira', 'stocks'].map(key => `
+        <div class="splitter-row">
+            <div class="splitter-port-name">${PORTFOLIOS[key].name}</div>
+            <input type="text" class="splitter-pct-input" id="splitter_pct_${key}" value="${ratios[key] || 0}%" inputmode="numeric" maxlength="4" oninput="onSplitterPctChange()" onfocus="this.value=this.value.replace('%','')" onblur="if(!this.value.endsWith('%'))this.value=this.value+'%'">
+            <div class="splitter-dollar" id="splitter_dollar_${key}" style="color:${dollarColor}">$0.00</div>
+            <div class="splitter-note">${notes[key]}</div>
+        </div>
+    `).join('');
+    updateSplitterPreview();
+}
+function getSplitterInputRatios() {
+    const ratios = {};
+    ['cushion', 'growth', 'ira', 'stocks'].forEach(key => { const el = document.getElementById('splitter_pct_' + key); ratios[key] = el ? (parseInt(el.value) || 0) : 0; });
+    return ratios;
+}
+function onSplitterPctChange() { saveSplitterRatios(getSplitterInputRatios()); updateSplitterPreview(); }
+function updateSplitterPreview() {
+    const total = parseFloat(document.getElementById('splitterTotal').value.replace(/,/g, '')) || 0;
+    const ratios = getSplitterInputRatios();
+    const totalPct = Object.values(ratios).reduce((s, v) => s + v, 0);
+    ['cushion', 'growth', 'ira', 'stocks'].forEach(key => { const el = document.getElementById('splitter_dollar_' + key); if (el) el.textContent = fmt(total * (ratios[key] || 0) / 100); });
+    const pctEl = document.getElementById('splitterTotalPct');
+    pctEl.textContent = 'Total: ' + totalPct + '%';
+    pctEl.className = 'splitter-total-pct ' + (totalPct === 100 ? 'ok' : 'bad');
+    const btn = document.getElementById('splitterRunBtn');
+    btn.disabled = totalPct !== 100 || total <= 0;
+    btn.style.opacity = (totalPct === 100 && total > 0) ? '1' : '0.4';
+}
+function resetSplitterRatios() { saveSplitterRatios(DEFAULT_RATIOS); renderSplitterRows(); }
+
+function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
+    const pDef = PORTFOLIOS[portfolioKey];
+    const data = loadData();
+    if (!data.portfolios[portfolioKey]) { data.portfolios[portfolioKey] = { holdings: {} }; pDef.order.forEach(t => { data.portfolios[portfolioKey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
+    const pd = data.portfolios[portfolioKey];
+    let tickers = pDef.order;
+    if (onlyOpps) { tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.70); if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true }; }
+    let totalVal = 0;
+    pDef.order.forEach(t => { totalVal += (pd.holdings[t] || { shares: 0 }).shares * getPrice(t); });
+    const cap = pDef.hardCap;
+    let effectiveAmount = investAmount;
+    if (cap > 0) { effectiveAmount = Math.min(investAmount, Math.max(0, cap - totalVal)); if (effectiveAmount <= 0) return { portfolioKey, capped: true, allocations: [], totalAmount: 0 }; }
+    const etfScores = [];
+    tickers.forEach(ticker => {
+        const target = pDef.targets[ticker];
+        const value = (pd.holdings[ticker] || { shares: 0 }).shares * getPrice(ticker);
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const composite = (Math.max(0, target.pct - currentPct) / 100) * 0.55 + calcValuationScore(ticker) * 0.45;
+        etfScores.push({ ticker, composite, aboveTarget: currentPct >= target.pct + 1 });
+    });
+    const eligible = etfScores.filter(e => !e.aboveTarget);
+    const totalComp = eligible.reduce((s, e) => s + e.composite, 0);
+    eligible.forEach(e => { e.rawAlloc = totalComp > 0 ? effectiveAmount * (e.composite / totalComp) : effectiveAmount / eligible.length; });
+    const maxSingle = effectiveAmount * (cap > 0 ? 0.40 : 0.45);
+    let overflow = 0;
+    eligible.forEach(e => { if (e.rawAlloc > maxSingle) { overflow += e.rawAlloc - maxSingle; e.rawAlloc = maxSingle; e.capped = true; } });
+    if (overflow > 0) { const unc = eligible.filter(e => !e.capped); const ut = unc.reduce((s, e) => s + e.composite, 0); unc.forEach(e => { e.rawAlloc += ut > 0 ? overflow * (e.composite / ut) : overflow / unc.length; }); }
+    let dust = 0;
+    eligible.forEach(e => { if (e.rawAlloc < 1 && e.rawAlloc > 0) { dust += e.rawAlloc; e.rawAlloc = 0; } });
+    let safety = 0;
+    while (dust > 0 && safety < 20) { safety++; const active = eligible.filter(e => e.rawAlloc >= 1); if (!active.length) { eligible.reduce((a, b) => a.composite > b.composite ? a : b).rawAlloc = effectiveAmount; break; } const at = active.reduce((s, e) => s + e.composite, 0); active.forEach(e => { e.rawAlloc += at > 0 ? dust * (e.composite / at) : dust / active.length; }); dust = 0; eligible.forEach(e => { if (e.rawAlloc > 0 && e.rawAlloc < 1) { dust += e.rawAlloc; e.rawAlloc = 0; } }); }
+    eligible.forEach(e => { e.rawAlloc = Math.round(e.rawAlloc * 100) / 100; });
+    const allocations = etfScores.map(e => { const f = eligible.find(x => x.ticker === e.ticker); const amt = f ? f.rawAlloc : 0; return { ticker: e.ticker, amount: amt, shares: getPrice(e.ticker) > 0 ? amt / getPrice(e.ticker) : 0, price: getPrice(e.ticker) }; }).filter(a => a.amount > 0);
+    return { portfolioKey, capped: false, allocations, totalAmount: effectiveAmount };
+}
+
+function previewSplitter() {
+    const total = parseFloat(document.getElementById('splitterTotal').value.replace(/,/g, '')) || 0;
+    const ratios = getSplitterInputRatios();
+    if (total <= 0 || Object.values(ratios).reduce((s, v) => s + v, 0) !== 100) return;
+    const amounts = {};
+    ['cushion', 'growth', 'ira', 'stocks'].forEach(key => { amounts[key] = total * (ratios[key] || 0) / 100; });
+    let redirectMsg = '';
+    // Redirect any portfolio under $1 minimum (Robinhood fractional minimum)
+    ['ira', 'stocks'].forEach(key => {
+        if (amounts[key] > 0 && amounts[key] < 1) {
+            redirectMsg = (redirectMsg ? redirectMsg + ' | ' : '') + `${PORTFOLIOS[key].name} ${fmt(amounts[key])} under $1 min — redirected to Cushion + Growth`;
+            const sum = (ratios.cushion || 0) + (ratios.growth || 0);
+            if (sum > 0) { amounts.cushion += amounts[key] * ((ratios.cushion || 0) / sum); amounts.growth += amounts[key] * ((ratios.growth || 0) / sum); }
+            amounts[key] = 0;
+        }
+    });
+    if (amounts.stocks > 0) {
+        const sr = calcDCAForPortfolio('stocks', amounts.stocks, true);
+        if (sr.noOpps || sr.allocations.length === 0) {
+            redirectMsg = (redirectMsg ? redirectMsg + ' | ' : '') + `No undervalued stocks — ${fmt(amounts.stocks)} redirected to Cushion + Growth`;
+            const sum = (ratios.cushion || 0) + (ratios.growth || 0);
+            if (sum > 0) { amounts.cushion += amounts.stocks * ((ratios.cushion || 0) / sum); amounts.growth += amounts.stocks * ((ratios.growth || 0) / sum); }
+            amounts.stocks = 0;
+        }
+    }
+    const results = [];
+    ['cushion', 'growth', 'ira', 'stocks'].forEach(key => { if (amounts[key] > 0) results.push(calcDCAForPortfolio(key, amounts[key], key === 'stocks')); });
+    pendingSplitter = results;
+    const body = document.getElementById('splitterResultBody');
+    let html = '';
+    if (redirectMsg) html += `<div style="font-size:0.65rem; color:var(--sky); padding:6px 8px; background:rgba(91,164,230,0.08); border-radius:8px; margin-bottom:8px; font-weight:600;">${redirectMsg}</div>`;
+    const rc = { cushion: '#e88b93', growth: '#c4703a', ira: '#ff8c00', stocks: '#ff8c00' }[currentPortfolio] || '#ff8c00';
+    html += results.map(r => {
+        const pDef = PORTFOLIOS[r.portfolioKey];
+        if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
+        return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div><div style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${r.allocations.map(a => `<span style="display:inline-block; background:white; border:1px solid #d4a843; color:#5a3e1b; border-radius:20px; padding:4px 12px; font-size:0.8rem; font-weight:700;">${a.ticker} ${fmt(a.amount)}</span>`).join('')}</div>`;
+    }).join('');
+    html += `<div class="splitter-result-line" style="border-top:1px solid var(--border); margin-top:4px; padding-top:6px;"><span class="splitter-result-port">Total</span><span class="splitter-result-amt" style="color:${rc}">${fmt(results.reduce((s, r) => s + r.totalAmount, 0))}</span></div>`;
+    body.innerHTML = html;
+    document.getElementById('splitterResult').classList.add('show');
+}
+function cancelSplitter() { pendingSplitter = null; document.getElementById('splitterResult').classList.remove('show'); }
+function confirmSplitter() {
+    if (!pendingSplitter) return;
+    const data = loadData();
+    pendingSplitter.forEach(r => {
+        if (r.capped || !r.allocations.length) return;
+        if (!data.portfolios[r.portfolioKey]) { data.portfolios[r.portfolioKey] = { holdings: {} }; PORTFOLIOS[r.portfolioKey].order.forEach(t => { data.portfolios[r.portfolioKey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
+        const pd = data.portfolios[r.portfolioKey];
+        r.allocations.forEach(a => { if (!pd.holdings[a.ticker]) pd.holdings[a.ticker] = { shares: 0, costBasis: 0 }; pd.holdings[a.ticker].shares += a.shares; pd.holdings[a.ticker].costBasis += a.amount; });
+        data.history.push({ id: 'split_' + Date.now() + '_' + r.portfolioKey, date: new Date().toISOString(), portfolio: r.portfolioKey, totalAmount: r.totalAmount, type: 'dca', allocations: r.allocations.map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
+    });
+    saveData(data);
+    pendingSplitter = null;
+    document.getElementById('splitterResult').classList.remove('show');
+    document.getElementById('splitterTotal').value = '';
+    updateSplitterPreview();
+    renderAll();
+}
+
+// ====== PORTFOLIO SWITCHING ======
+// Per-portfolio themes: background image + CSS variable overrides
+const THEMES = {
+    cushion: {
+        bg: 'bg.webp',
+        vars: {
+            '--rose': '#e88b93', '--rose-deep': '#d46b73', '--rose-light': '#fcd4d8',
+            '--rose-glow': '#f5b0b8', '--border': '#f0c4c8', '--border-light': '#f8dde0',
+            '--petal': '#fff0f2', '--bg': '#fef9f5', '--cream': '#fef9f5', '--text-dim': '#6b5e5e',
+            '--text': '#2a2a2a', '--text-bright': '#2d2d2d', '--red': '#d45a5a',
+            '--leaf': '#5c8c6a', '--leaf-light': '#8aba96', '--leaf-dim': '#4a7058', '--sky': '#5ba4e6',
+            '--input-text': 'var(--text-bright)', '--header-shadow': '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6)',
+            '--splitter-bg': 'linear-gradient(135deg, rgba(34,80,54,0.45), rgba(240,253,244,0.75))',
+            '--dca-bg': 'linear-gradient(135deg, rgba(34,74,130,0.45), rgba(230,243,255,0.75))',
+            '--bg-card': 'rgba(255,255,255,0.88)'
+        },
+        cardGrad: 'linear-gradient(to bottom, rgba(255,255,255,0.82), rgba(252,243,222,0.72))',
+        themeColor: '#e88b93',
+        placeholder: '‧₊˚❀˚₊‧'
+    },
+    growth: {
+        bg: 'growth-bg.webp',
+        vars: {
+            '--rose': '#5ba4e6', '--rose-deep': '#2e7bbf', '--rose-light': '#d0e8fa',
+            '--rose-glow': '#88c4f0', '--border': '#a8cce8', '--border-light': '#c8e0f4',
+            '--petal': '#eef6fd', '--bg': '#f4f9fe', '--cream': '#f4f9fe', '--text-dim': '#5a6a78', '--red': '#e09040',
+            '--text': '#2a2a2a', '--text-bright': '#2d2d2d',
+            '--leaf': '#5c8c6a', '--leaf-light': '#8aba96', '--leaf-dim': '#4a7058', '--sky': '#5ba4e6',
+            '--input-text': 'var(--text-bright)', '--header-shadow': '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6)',
+            '--splitter-bg': 'linear-gradient(135deg, rgba(34,80,54,0.45), rgba(240,253,244,0.75))',
+            '--dca-bg': 'linear-gradient(135deg, rgba(34,74,130,0.45), rgba(230,243,255,0.75))',
+            '--bg-card': 'rgba(255,255,255,0.93)'
+        },
+        cardGrad: 'linear-gradient(to bottom, rgba(255,255,255,0.90), rgba(210,235,220,0.82))',
+        themeColor: '#5ba4e6',
+        placeholder: '° ˚*_Π___*☽*˚ °'
+    },
+    ira: {
+        bg: 'ira-bg.webp',
+        vars: {
+            '--rose': '#6ecfcf', '--rose-deep': '#a0e8d8', '--rose-light': 'rgba(110,207,207,0.2)',
+            '--rose-glow': '#80d8c8', '--border': 'rgba(110,207,207,0.3)', '--border-light': 'rgba(110,207,207,0.2)',
+            '--petal': 'rgba(20,40,50,0.5)', '--bg': '#0c1a22', '--cream': '#0c1a22',
+            '--text': '#d8e8e8', '--text-dim': '#88aab0', '--text-bright': '#f0f8f8', '--red': '#e8944a',
+            '--leaf': '#5c8c6a', '--leaf-light': '#8aba96', '--leaf-dim': '#88bba0', '--sky': '#5ba4e6',
+            '--input-text': '#2a2a2a', '--header-shadow': 'none', '--rose-light': 'rgba(20,60,70,0.85)', '--splitter-bg': 'linear-gradient(135deg, rgba(12,26,34,0.65), rgba(20,45,55,0.60))', '--dca-bg': 'linear-gradient(135deg, rgba(12,26,34,0.65), rgba(20,45,55,0.60))',
+            '--bg-card': 'rgba(12,26,34,0.92)'
+        },
+        cardGrad: 'linear-gradient(to bottom, rgba(12,28,38,0.93), rgba(16,36,46,0.90))',
+        themeColor: '#1a3040',
+        placeholder: '⋆⁺₊⋆ ☾⋆⁺₊⋆'
+    },
+    stocks: {
+        bg: 'stocks-bg.webp',
+        vars: {
+            '--rose': '#8bb8d8', '--rose-deep': '#a0cce8', '--rose-light': 'rgba(60,30,15,0.80)',
+            '--rose-glow': '#f0c078', '--border': 'rgba(232,160,80,0.3)', '--border-light': 'rgba(232,160,80,0.2)',
+            '--petal': 'rgba(40,20,10,0.5)', '--bg': '#1a0e08', '--cream': '#1a0e08',
+            '--text': '#e8d0b0', '--text-dim': '#a08868', '--text-bright': '#f5e8d0', '--red': '#e87050',
+            '--input-text': '#2a2a2a', '--header-shadow': 'none', '--leaf': '#8aa8cc', '--leaf-light': '#a8c4e0', '--leaf-dim': '#90a8c8', '--sky': '#8aa8cc',
+            '--splitter-bg': 'linear-gradient(135deg, rgba(30,15,8,0.65), rgba(50,25,12,0.60))',
+            '--dca-bg': 'linear-gradient(135deg, rgba(30,15,8,0.65), rgba(50,25,12,0.60))',
+            '--bg-card': 'rgba(25,12,6,0.90)'
+        },
+        cardGrad: 'linear-gradient(to bottom, rgba(25,14,8,0.92), rgba(35,18,10,0.88))',
+        themeColor: '#e8a050',
+        placeholder: '⋆·˚ ◈ ˚·⋆'
+    }
+};
+
+function applyTheme(key) {
+    const theme = THEMES[key] || THEMES.cushion;
+    const root = document.documentElement;
+    for (const [prop, val] of Object.entries(theme.vars)) {
+        root.style.setProperty(prop, val);
+    }
+    // Update ETF card gradient
+    document.querySelectorAll('.etf-card').forEach(c => { c.style.background = theme.cardGrad; });
+    // Update theme-color meta
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', theme.themeColor);
+    // Swap background with fade
+    const bg = document.querySelector('.bg-watermark');
+    const currentFile = bg.src.split('/').pop();
+    if (currentFile !== theme.bg) {
+        bg.classList.add('fading');
+        setTimeout(() => { bg.src = theme.bg; bg.classList.remove('fading'); }, 400);
+    }
+    // Swap placeholders
+    if (theme.placeholder) {
+        document.getElementById('dcaAmount').placeholder = theme.placeholder;
+        document.getElementById('splitterTotal').placeholder = theme.placeholder;
+    }
+}
+
+function switchPortfolio() {
+    currentPortfolio = document.getElementById('portfolioSelect').value;
+    applyTheme(currentPortfolio);
+    renderAll();
+    if (document.getElementById('splitterBody').classList.contains('open')) renderSplitterRows();
+    document.getElementById('splitterResult').classList.remove('show');
+    pendingSplitter = null;
+}
+
+// ====== INIT ======
+document.addEventListener('DOMContentLoaded', () => { applyTheme(currentPortfolio); refreshPrices(); });
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
+</script>
+</body>
+</html>
