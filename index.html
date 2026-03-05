@@ -1281,7 +1281,8 @@ function renderStockOppsBanner() {
 function renderSellBanner() {
     const banner = document.getElementById('stockSellBanner');
     const pDef = PORTFOLIOS.stocks;
-    const pd = portfolioData.stocks || { holdings: {} };
+    const data = loadData();
+    const pd = (data.portfolios && data.portfolios.stocks) || { holdings: {} };
     const totalVal = pDef.order.reduce((sum, t) => {
         const h = pd.holdings[t] || { shares: 0 };
         return sum + h.shares * getPrice(t);
