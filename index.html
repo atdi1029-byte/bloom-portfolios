@@ -380,6 +380,13 @@
             animation: oppsPulse 1.5s ease-in-out infinite;
         }
         .stock-opps-btn.show { display: inline-block !important; }
+        .stock-sell-btn {
+            background: white !important;
+            border-color: var(--red) !important;
+            color: var(--red) !important;
+            animation: oppsPulse 1.5s ease-in-out infinite;
+        }
+        .stock-sell-btn.show { display: inline-block !important; }
         @keyframes oppsPulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -794,6 +801,7 @@
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="document.getElementById('portfolioSelect').value='stocks'; switchPortfolio();" style="display:none;"></button>
+            <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="document.getElementById('portfolioSelect').value='stocks'; switchPortfolio();" style="display:none;"></button>
         </div>
     </div>
 
@@ -1269,9 +1277,41 @@ function renderStockOppsBanner() {
     }
 }
 
+// ====== STOCK SELL/TRIM ALERT (visible on every tab) ======
+function renderSellBanner() {
+    const banner = document.getElementById('stockSellBanner');
+    const pDef = PORTFOLIOS.stocks;
+    const pd = portfolioData.stocks || { holdings: {} };
+    const totalVal = pDef.order.reduce((sum, t) => {
+        const h = pd.holdings[t] || { shares: 0 };
+        return sum + h.shares * getPrice(t);
+    }, 0);
+    let count = 0;
+    pDef.order.forEach(ticker => {
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        if (h.shares <= 0) return;
+        const price = getPrice(ticker);
+        const value = h.shares * price;
+        const valScore = calcValuationScore(ticker);
+        const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const targetPct = pDef.targets[ticker].pct;
+        const isTakeProfit = pnlPct >= 50 && valScore < 0.30 && value > 100;
+        const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
+        if (isTakeProfit || isDriftHigh) count++;
+    });
+    if (count > 0) {
+        banner.textContent = count + ' Stock' + (count === 1 ? '' : 's') + ' to Trim';
+        banner.classList.add('show');
+    } else {
+        banner.classList.remove('show');
+    }
+}
+
 // ====== RENDER ALL ======
 function renderAll() {
     renderStockOppsBanner();
+    renderSellBanner();
     renderBuyOpps();
     renderProgress();
     renderStats();
@@ -1759,6 +1799,33 @@ function renderAlerts() {
     const totalVal = getTotalValue();
     const alerts = [];
     if (pDef.hardCap > 0 && totalVal >= pDef.hardCap) alerts.push('Portfolio fully funded at ' + fmt(totalVal));
+    // Build list of underweight tickers for reallocation suggestions
+    const underweight = [];
+    pDef.order.forEach(ticker => {
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        const price = getPrice(ticker);
+        const value = h.shares * price;
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const targetPct = pDef.targets[ticker].pct;
+        const gap = targetPct - currentPct;
+        if (gap > 2) underweight.push({ ticker, gap: gap.toFixed(1) });
+    });
+    underweight.sort((a, b) => b.gap - a.gap);
+    const reallocHtml = underweight.length > 0
+        ? ' → <span style="color:var(--leaf);">' + underweight.slice(0, 3).map(u => `${u.ticker} (${u.gap}% under)`).join(', ') + '</span>'
+        : '';
+    // Find most recent buy date per ticker for tax warnings
+    const data = loadData();
+    const lastBuyDate = {};
+    (data.history || []).forEach(h => {
+        if (h.portfolio !== currentPortfolio || h.type === 'sell') return;
+        (h.allocations || []).forEach(a => {
+            const d = new Date(h.date);
+            if (!lastBuyDate[a.ticker] || d > lastBuyDate[a.ticker]) lastBuyDate[a.ticker] = d;
+        });
+    });
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     pDef.order.forEach(ticker => {
         const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
         const price = getPrice(ticker);
@@ -1767,16 +1834,24 @@ function renderAlerts() {
         const targetPct = pDef.targets[ticker].pct;
         const drift = Math.abs(currentPct - targetPct);
         const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
+        // Tax warning: short-term gains if last buy < 1 year ago
+        let taxWarn = '';
+        if (lastBuyDate[ticker] && lastBuyDate[ticker] > oneYearAgo && pnlPct > 0) {
+            const ltDate = new Date(lastBuyDate[ticker]);
+            ltDate.setFullYear(ltDate.getFullYear() + 1);
+            const months = Math.ceil((ltDate - new Date()) / (1000 * 60 * 60 * 24 * 30));
+            taxWarn = ` <span style="color:var(--gold); font-size:0.75rem;">held &lt;1yr (long-term in ${months}mo)</span>`;
+        }
         if (drift > 10 && totalVal > 1000) {
             if (currentPct >= targetPct * 2) {
                 const trimAmt = value - (totalVal * targetPct / 100);
-                alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Trim ${fmt(trimAmt)}</strong>`);
+                alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Trim ${fmt(trimAmt)}</strong>${taxWarn}${reallocHtml}`);
             } else {
                 alerts.push(`${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)`);
             }
         }
         if (pnlPct >= 50 && calcValuationScore(ticker) < 0.30 && value > 100) {
-            alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — consider taking profits`);
+            alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — consider taking profits${taxWarn}${reallocHtml}`);
         }
     });
     const section = document.getElementById('alertSection');
