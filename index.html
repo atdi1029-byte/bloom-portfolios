@@ -1722,7 +1722,7 @@ function previewDCA() {
         const rawGap = (target.pct - currentPct) / 100;
         const gapScore = Math.max(0, rawGap);
         const valScore = calcValuationScore(ticker);
-        const composite = gapScore * 0.55 + valScore * 0.45;
+        const composite = Math.max(0, rawGap * 0.55 + valScore * 0.45);
         etfScores.push({ ticker, gapScore, rawGap, valScore, composite, currentPct, targetPct: target.pct, aboveTarget: currentPct >= target.pct + 10 });
     });
     const eligible = etfScores.filter(e => !e.aboveTarget);
@@ -1761,7 +1761,7 @@ function previewDCA() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="color:var(--red); font-weight:700;">${a.ticker}</td>
-            <td style="color:${a.rawGap < 0 ? '#e88b93' : 'inherit'}">${a.rawGap < 0 ? '' : '+'}${(a.rawGap * 100).toFixed(0)}</td>
+            <td style="${a.rawGap < 0 ? 'color:#c0392b; font-weight:700; background:rgba(192,57,43,0.12); border-radius:4px; padding:2px 6px;' : 'color:#27ae60; font-weight:600;'}">${a.rawGap < 0 ? '' : '+'}${(a.rawGap * 100).toFixed(0)}</td>
             <td>${(a.valScore * 100).toFixed(0)}</td>
             <td>${(a.composite * 100).toFixed(0)}</td>
             <td class="alloc-amount">${a.amount > 0 ? fmt(a.amount) : '--'}</td>
@@ -2364,7 +2364,7 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
         const target = pDef.targets[ticker];
         const value = (pd.holdings[ticker] || { shares: 0 }).shares * getPrice(ticker);
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
-        const composite = (Math.max(0, target.pct - currentPct) / 100) * 0.55 + calcValuationScore(ticker) * 0.45;
+        const composite = Math.max(0, ((target.pct - currentPct) / 100) * 0.55 + calcValuationScore(ticker) * 0.45);
         etfScores.push({ ticker, composite, aboveTarget: currentPct >= target.pct + 10 });
     });
     const eligible = etfScores.filter(e => !e.aboveTarget);
