@@ -1719,10 +1719,11 @@ function previewDCA() {
         const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
         const value = h.shares * getPrice(ticker);
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
-        const gapScore = Math.max(0, target.pct - currentPct) / 100;
+        const rawGap = (target.pct - currentPct) / 100;
+        const gapScore = Math.max(0, rawGap);
         const valScore = calcValuationScore(ticker);
         const composite = gapScore * 0.55 + valScore * 0.45;
-        etfScores.push({ ticker, gapScore, valScore, composite, currentPct, targetPct: target.pct, aboveTarget: currentPct >= target.pct + 1 });
+        etfScores.push({ ticker, gapScore, rawGap, valScore, composite, currentPct, targetPct: target.pct, aboveTarget: currentPct >= target.pct + 10 });
     });
     const eligible = etfScores.filter(e => !e.aboveTarget);
     const totalComposite = eligible.reduce((s, e) => s + e.composite, 0);
@@ -1750,7 +1751,7 @@ function previewDCA() {
     eligible.forEach(e => { e.rawAlloc = Math.round(e.rawAlloc * 100) / 100; });
     const allAlloc = etfScores.map(e => {
         const found = eligible.find(x => x.ticker === e.ticker);
-        return { ticker: e.ticker, gapScore: e.gapScore, valScore: e.valScore, composite: e.composite, amount: found ? found.rawAlloc : 0, shares: getPrice(e.ticker) > 0 ? ((found ? found.rawAlloc : 0) / getPrice(e.ticker)) : 0, price: getPrice(e.ticker) };
+        return { ticker: e.ticker, gapScore: e.gapScore, rawGap: e.rawGap, valScore: e.valScore, composite: e.composite, amount: found ? found.rawAlloc : 0, shares: getPrice(e.ticker) > 0 ? ((found ? found.rawAlloc : 0) / getPrice(e.ticker)) : 0, price: getPrice(e.ticker) };
     });
     pendingDCA = { totalAmount: effectiveAmount, allocations: allAlloc, cashUsed: cashToUse };
     const maxComp = Math.max(...etfScores.map(e => e.composite), 0.01);
@@ -1760,7 +1761,7 @@ function previewDCA() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="color:var(--red); font-weight:700;">${a.ticker}</td>
-            <td>${(a.gapScore * 100).toFixed(0)}</td>
+            <td style="color:${a.rawGap < 0 ? '#e88b93' : 'inherit'}">${a.rawGap < 0 ? '' : '+'}${(a.rawGap * 100).toFixed(0)}</td>
             <td>${(a.valScore * 100).toFixed(0)}</td>
             <td>${(a.composite * 100).toFixed(0)}</td>
             <td class="alloc-amount">${a.amount > 0 ? fmt(a.amount) : '--'}</td>
@@ -2364,7 +2365,7 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
         const value = (pd.holdings[ticker] || { shares: 0 }).shares * getPrice(ticker);
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
         const composite = (Math.max(0, target.pct - currentPct) / 100) * 0.55 + calcValuationScore(ticker) * 0.45;
-        etfScores.push({ ticker, composite, aboveTarget: currentPct >= target.pct + 1 });
+        etfScores.push({ ticker, composite, aboveTarget: currentPct >= target.pct + 10 });
     });
     const eligible = etfScores.filter(e => !e.aboveTarget);
     const totalComp = eligible.reduce((s, e) => s + e.composite, 0);
