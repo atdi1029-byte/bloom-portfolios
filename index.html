@@ -372,6 +372,18 @@
         .splitter-result-detail { color: var(--leaf); font-size: 0.95rem; }
         .splitter-result-amt { color: #ff8c00; font-weight: 700; font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; }
 
+        .splitter-pill {
+            display: inline-block; background: white; border: 1px solid #d4a843;
+            color: #5a3e1b; border-radius: 20px; padding: 4px 12px;
+            font-size: 0.8rem; font-weight: 700; cursor: pointer;
+            transition: all 0.25s ease; user-select: none;
+        }
+        .splitter-pill:active { transform: scale(0.95); }
+        .splitter-pill.bought {
+            background: linear-gradient(135deg, #3a9e4a, #2a8538);
+            color: white; border-color: #2a8538; cursor: default;
+        }
+
         /* Stock Picks buy alert pill */
         .stock-opps-btn {
             background: white !important;
@@ -2132,22 +2144,74 @@ function previewSplitter() {
     html += results.map(r => {
         const pDef = PORTFOLIOS[r.portfolioKey];
         if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
-        return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div><div style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${r.allocations.map(a => `<span style="display:inline-block; background:white; border:1px solid #d4a843; color:#5a3e1b; border-radius:20px; padding:4px 12px; font-size:0.8rem; font-weight:700;">${a.ticker} ${fmt(a.amount)}</span>`).join('')}</div>`;
+        return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div><div style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>`).join('')}</div>`;
     }).join('');
     html += `<div class="splitter-result-line" style="border-top:1px solid var(--border); margin-top:4px; padding-top:6px;"><span class="splitter-result-port">Total</span><span class="splitter-result-amt" style="color:${rc}">${fmt(results.reduce((s, r) => s + r.totalAmount, 0))}</span></div>`;
     body.innerHTML = html;
     document.getElementById('splitterResult').classList.add('show');
 }
 function cancelSplitter() { pendingSplitter = null; document.getElementById('splitterResult').classList.remove('show'); }
+function buyPill(el) {
+    if (el.classList.contains('bought')) return;
+    const pkey = el.dataset.pkey;
+    const ticker = el.dataset.ticker;
+    const amount = parseFloat(el.dataset.amount);
+    const shares = parseFloat(el.dataset.shares);
+    const price = parseFloat(el.dataset.price);
+    const data = loadData();
+    if (!data.portfolios[pkey]) { data.portfolios[pkey] = { holdings: {} }; PORTFOLIOS[pkey].order.forEach(t => { data.portfolios[pkey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
+    const pd = data.portfolios[pkey];
+    if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0 };
+    pd.holdings[ticker].shares += shares;
+    pd.holdings[ticker].costBasis += amount;
+    if (!data.history) data.history = [];
+    data.history.push({ id: 'buy_' + Date.now() + '_' + ticker, date: new Date().toISOString(), portfolio: pkey, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
+    saveData(data);
+    el.classList.add('bought');
+    el.textContent = '\u2713 ' + ticker;
+    renderAll();
+    // Auto-close if all pills are bought
+    const allPills = document.querySelectorAll('.splitter-pill');
+    const allBought = Array.from(allPills).every(p => p.classList.contains('bought'));
+    if (allBought) {
+        setTimeout(() => {
+            pendingSplitter = null;
+            document.getElementById('splitterResult').classList.remove('show');
+            data.splitterTotal = '';
+            saveData(data);
+            document.getElementById('splitterTotal').value = '';
+            updateSplitterPreview();
+        }, 600);
+    }
+}
 function confirmSplitter() {
     if (!pendingSplitter) return;
+    // Only confirm pills that haven't been individually bought
+    const unbought = document.querySelectorAll('.splitter-pill:not(.bought)');
+    if (unbought.length === 0) { cancelSplitter(); return; }
     const data = loadData();
+    unbought.forEach(el => {
+        const pkey = el.dataset.pkey;
+        const ticker = el.dataset.ticker;
+        const amount = parseFloat(el.dataset.amount);
+        const shares = parseFloat(el.dataset.shares);
+        const price = parseFloat(el.dataset.price);
+        if (!data.portfolios[pkey]) { data.portfolios[pkey] = { holdings: {} }; PORTFOLIOS[pkey].order.forEach(t => { data.portfolios[pkey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
+        const pd = data.portfolios[pkey];
+        if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0 };
+        pd.holdings[ticker].shares += shares;
+        pd.holdings[ticker].costBasis += amount;
+    });
+    // Add history entries per portfolio
     pendingSplitter.forEach(r => {
         if (r.capped || !r.allocations.length) return;
-        if (!data.portfolios[r.portfolioKey]) { data.portfolios[r.portfolioKey] = { holdings: {} }; PORTFOLIOS[r.portfolioKey].order.forEach(t => { data.portfolios[r.portfolioKey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
-        const pd = data.portfolios[r.portfolioKey];
-        r.allocations.forEach(a => { if (!pd.holdings[a.ticker]) pd.holdings[a.ticker] = { shares: 0, costBasis: 0 }; pd.holdings[a.ticker].shares += a.shares; pd.holdings[a.ticker].costBasis += a.amount; });
-        data.history.push({ id: 'split_' + Date.now() + '_' + r.portfolioKey, date: new Date().toISOString(), portfolio: r.portfolioKey, totalAmount: r.totalAmount, type: 'dca', allocations: r.allocations.map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
+        const remaining = r.allocations.filter(a => {
+            const pill = document.querySelector(`.splitter-pill.bought[data-pkey="${r.portfolioKey}"][data-ticker="${a.ticker}"]`);
+            return !pill; // only include allocations that weren't individually bought
+        });
+        if (remaining.length > 0) {
+            data.history.push({ id: 'split_' + Date.now() + '_' + r.portfolioKey, date: new Date().toISOString(), portfolio: r.portfolioKey, totalAmount: remaining.reduce((s, a) => s + a.amount, 0), type: 'dca', allocations: remaining.map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
+        }
     });
     data.splitterTotal = '';
     saveData(data);
