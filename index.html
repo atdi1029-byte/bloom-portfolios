@@ -2227,7 +2227,21 @@ function switchPortfolio() {
 }
 
 // ====== INIT ======
-document.addEventListener('DOMContentLoaded', () => { applyTheme(currentPortfolio); refreshPrices(); });
+document.addEventListener('DOMContentLoaded', async () => {
+    applyTheme(currentPortfolio);
+    // Restore data from cloud if localStorage is empty (e.g. after cache clear)
+    const local = loadData();
+    const hasData = Object.values(local.portfolios || {}).some(p =>
+        Object.values(p.holdings || {}).some(h => h.shares > 0 || h.costBasis > 0)
+    );
+    if (!hasData) {
+        const cloud = await loadFromCloud();
+        if (cloud && cloud.portfolios) {
+            saveData(cloud);
+        }
+    }
+    refreshPrices();
+});
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
 </script>
 </body>
