@@ -1761,7 +1761,7 @@ function previewDCA() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="color:var(--red); font-weight:700;">${a.ticker}</td>
-            <td style="${a.rawGap < 0 ? 'color:#c0392b; font-weight:700; background:rgba(192,57,43,0.12); border-radius:4px; padding:2px 6px;' : 'color:#27ae60; font-weight:600;'}">${a.rawGap < 0 ? '' : '+'}${(a.rawGap * 100).toFixed(0)}</td>
+            <td style="${a.rawGap < 0 ? 'color:#c0392b; font-weight:700; background:rgba(192,57,43,0.12); border-radius:4px; padding:2px 6px;' : 'font-weight:600;'}">${a.rawGap < 0 ? '' : '+'}${(a.rawGap * 100).toFixed(0)}</td>
             <td>${(a.valScore * 100).toFixed(0)}</td>
             <td>${(a.composite * 100).toFixed(0)}</td>
             <td class="alloc-amount">${a.amount > 0 ? fmt(a.amount) : '--'}</td>
