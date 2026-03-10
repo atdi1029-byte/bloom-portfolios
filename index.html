@@ -1929,37 +1929,78 @@ function scaleCanvas(canvas, w, h) {
 }
 
 // ====== PIE CHART ======
+let pieSliceData = []; // stored for tap detection
+let pieSelectedTicker = null;
+
 function renderPieChart() {
     const canvas = document.getElementById('pieChart');
     const ctx = scaleCanvas(canvas, 180, 180);
     const pDef = getPortfolioDef();
     const pd = getPortfolioData();
     ctx.clearRect(0, 0, 180, 180);
-    const cx = 90, cy = 90, r = 80;
+    const cx = 90, cy = 90, r = 80, innerR = r * 0.5;
     const slices = pDef.order.map(t => ({ ticker: t, value: (pd.holdings[t] || { shares: 0 }).shares * getPrice(t), color: ETF_COLORS[t] || '#ccc' }));
     const total = slices.reduce((s, sl) => s + sl.value, 0);
     if (total <= 0) {
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = '#f8f0f0'; ctx.fill();
         ctx.fillStyle = '#5a4e4e'; ctx.font = '600 14px Quicksand'; ctx.textAlign = 'center'; ctx.fillText('No holdings yet', cx, cy + 4);
         document.getElementById('pieLegend').innerHTML = pDef.order.map(t => `<div class="pie-legend-item"><div class="pie-legend-dot" style="background:${ETF_COLORS[t]}"></div><span>${t}</span><span style="color:var(--text-dim);">${pDef.targets[t].pct}%</span></div>`).join('');
+        pieSliceData = [];
         return;
     }
+    // Draw slices and store angle ranges for tap detection
+    pieSliceData = [];
     let startAngle = -Math.PI / 2;
     slices.forEach(sl => {
-        if (sl.value <= 0) return;
+        if (sl.value <= 0) { pieSliceData.push({ ticker: sl.ticker, start: startAngle, end: startAngle }); return; }
         const sliceAngle = (sl.value / total) * Math.PI * 2;
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, startAngle, startAngle + sliceAngle); ctx.closePath();
+        const isSelected = pieSelectedTicker === sl.ticker;
+        const drawR = isSelected ? r + 6 : r;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, drawR, startAngle, startAngle + sliceAngle); ctx.closePath();
         ctx.fillStyle = sl.color; ctx.fill();
         ctx.strokeStyle = '#fef9f5'; ctx.lineWidth = 2; ctx.stroke();
+        pieSliceData.push({ ticker: sl.ticker, value: sl.value, color: sl.color, start: startAngle, end: startAngle + sliceAngle });
         startAngle += sliceAngle;
     });
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2); ctx.fillStyle = '#fef9f5'; ctx.fill();
-    ctx.fillStyle = '#3a3a3a'; ctx.font = 'bold 13px Quicksand'; ctx.textAlign = 'center'; ctx.fillText(fmt(total), cx, cy + 5);
+    // Draw center hole
+    ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2); ctx.fillStyle = '#fef9f5'; ctx.fill();
+    // Center label — show selected ETF or total
+    const sel = pieSelectedTicker ? slices.find(s => s.ticker === pieSelectedTicker && s.value > 0) : null;
+    if (sel) {
+        ctx.fillStyle = '#3a3a3a'; ctx.font = 'bold 11px Quicksand'; ctx.textAlign = 'center';
+        ctx.fillText(sel.ticker, cx, cy - 2);
+        ctx.font = 'bold 13px Quicksand';
+        ctx.fillText(fmt(sel.value), cx, cy + 12);
+    } else {
+        ctx.fillStyle = '#3a3a3a'; ctx.font = 'bold 13px Quicksand'; ctx.textAlign = 'center'; ctx.fillText(fmt(total), cx, cy + 5);
+    }
     document.getElementById('pieLegend').innerHTML = slices.map(sl => {
         const pct = total > 0 ? (sl.value / total * 100) : 0;
         return `<div class="pie-legend-item"><div class="pie-legend-dot" style="background:${sl.color}"></div><span>${sl.ticker}</span><span style="color:var(--text-dim);">${fmtPct(pct)}</span></div>`;
     }).join('');
 }
+
+// Tap detection for pie chart
+(function() {
+    const canvas = document.getElementById('pieChart');
+    if (!canvas) return;
+    canvas.addEventListener('click', function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - 90;
+        const y = e.clientY - rect.top - 90;
+        const dist = Math.sqrt(x * x + y * y);
+        if (dist < 90 * 0.5 || dist > 90) { pieSelectedTicker = null; renderPieChart(); return; } // tapped center or outside
+        let angle = Math.atan2(y, x);
+        if (angle < -Math.PI / 2) angle += Math.PI * 2; // normalize to match start at -PI/2
+        const hit = pieSliceData.find(s => angle >= s.start && angle < s.end);
+        if (hit) {
+            pieSelectedTicker = pieSelectedTicker === hit.ticker ? null : hit.ticker;
+        } else {
+            pieSelectedTicker = null;
+        }
+        renderPieChart();
+    });
+})();
 
 // ====== GROWTH CHART ======
 function renderGrowthChart() {
