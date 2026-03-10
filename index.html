@@ -392,6 +392,7 @@
             animation: oppsPulse 1.5s ease-in-out infinite;
         }
         .stock-opps-btn.show { display: inline-block !important; }
+        .stock-opps-btn.seen { display: none !important; }
         .stock-sell-btn {
             background: white !important;
             border-color: var(--red) !important;
@@ -399,6 +400,7 @@
             animation: oppsPulse 1.5s ease-in-out infinite;
         }
         .stock-sell-btn.show { display: inline-block !important; }
+        .stock-sell-btn.seen { display: none !important; }
         @keyframes oppsPulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -539,6 +541,8 @@
             min-width: 280px;
             flex-shrink: 0;
             scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
         }
         .etf-card:hover { box-shadow: 0 4px 20px rgba(232,139,147,0.15); transform: translateY(-1px); }
         .etf-ticker {
@@ -812,8 +816,8 @@
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
-            <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="document.getElementById('portfolioSelect').value='stocks'; switchPortfolio();" style="display:none;"></button>
-            <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="document.getElementById('portfolioSelect').value='stocks'; switchPortfolio();" style="display:none;"></button>
+            <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
+            <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
         </div>
     </div>
 
@@ -942,7 +946,10 @@
             </div>
         </div>
         <div class="chart-card">
-            <div class="chart-title">Growth Over Time</div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="chart-title" style="margin-bottom:0;">Growth Over Time</div>
+                <button onclick="toggleGrowthMode()" id="growthModeBtn" style="font-size:0.55rem; padding:2px 8px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.5); color:var(--text-dim); font-weight:600; cursor:pointer; font-family:'Quicksand',sans-serif;">All Portfolios</button>
+            </div>
             <canvas id="growthChart" width="400" height="200" class="chart-canvas"></canvas>
             <div style="font-size:0.5rem; color:var(--text-dim); margin-top:4px; text-align:center; font-weight:500;" id="growthLabel">Based on DCA history</div>
         </div>
@@ -1033,7 +1040,7 @@ const PORTFOLIOS = {
             GLD:  { pct: 8,  purpose: 'Gold' },
             VOO:  { pct: 7,  purpose: 'S&P 500' }
         },
-        dividendReinvest: ['SCHD', 'DGRO', 'VOO'],
+        dividendReinvest: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'VOO'],
         order: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'GLD', 'VOO']
     },
     growth: {
@@ -1086,7 +1093,7 @@ const PORTFOLIOS = {
             NFLX: { pct: 5,  purpose: 'Streaming winner' },
             PG:   { pct: 5,  purpose: 'Consumer staples dividend king' }
         },
-        dividendReinvest: ['MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'COST', 'PG'],
+        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG'],
         order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK.B', 'JPM', 'UNH', 'LLY', 'COST', 'NFLX', 'PG']
     }
 };
@@ -1136,7 +1143,10 @@ function syncToCloud(data) {
             splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
             splitterTotal: data.splitterTotal || '',
             history: data.history || [],
-            dividendHistory: data.dividendHistory || []
+            dividendHistory: data.dividendHistory || [],
+            seenBuyOpps: [...seenBuyOpps],
+            seenSellOpps: [...seenSellOpps],
+            dismissedOpps: [...dismissedOpps]
         };
         const json = JSON.stringify(essential);
         const encoded = encodeURIComponent(json);
@@ -1144,7 +1154,7 @@ function syncToCloud(data) {
             fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
         } else {
             // Too big — drop history/dividends but keep splitter
-            const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal };
+            const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
             fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
         }
     } catch (e) { console.error('Cloud sync error:', e); }
@@ -1281,18 +1291,26 @@ function renderStockOppsBanner() {
     const pDef = PORTFOLIOS.stocks;
     let count = 0;
     const tickers = [];
+    let hasNew = false;
     pDef.order.forEach(ticker => {
         if (dismissedOpps.has(ticker)) return;
         const valScore = calcValuationScore(ticker);
         const price = getPrice(ticker);
-        if (valScore >= 0.70 && price > 0) {
+        if (valScore >= 0.60 && price > 0) {
             count++;
             tickers.push(ticker);
+            if (!seenBuyOpps.has(ticker)) hasNew = true;
         }
     });
     if (count > 0) {
         banner.textContent = count + ' Stock Pick' + (count === 1 ? '' : 's') + ' to Buy';
         banner.classList.add('show');
+        // Only pulse if there are new (unseen) opps
+        if (hasNew) {
+            banner.classList.remove('seen');
+        } else {
+            banner.classList.add('seen');
+        }
     } else {
         banner.classList.remove('show');
     }
@@ -1309,6 +1327,8 @@ function renderSellBanner() {
         return sum + h.shares * getPrice(t);
     }, 0);
     let count = 0;
+    const sellTickers = [];
+    let hasNew = false;
     pDef.order.forEach(ticker => {
         const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
         if (h.shares <= 0) return;
@@ -1318,20 +1338,57 @@ function renderSellBanner() {
         const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
         const targetPct = pDef.targets[ticker].pct;
-        const isTakeProfit = pnlPct >= 50 && valScore < 0.30 && value > 100;
+        const isTakeProfit = pnlPct >= 50 && valScore < 0.40 && value > 100;
         const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
-        if (isTakeProfit || isDriftHigh) count++;
+        if (isTakeProfit || isDriftHigh) { count++; sellTickers.push(ticker); if (!seenSellOpps.has(ticker)) hasNew = true; }
     });
     if (count > 0) {
         banner.textContent = count + ' Stock' + (count === 1 ? '' : 's') + ' to Trim';
         banner.classList.add('show');
+        if (hasNew) { banner.classList.remove('seen'); } else { banner.classList.add('seen'); }
     } else {
         banner.classList.remove('show');
     }
 }
 
+function acknowledgeBuyBanner() {
+    // Mark all current buy opps as seen, stop pulse, then navigate to stocks
+    const pDef = PORTFOLIOS.stocks;
+    pDef.order.forEach(ticker => {
+        const valScore = calcValuationScore(ticker);
+        const price = getPrice(ticker);
+        if (valScore >= 0.60 && price > 0) seenBuyOpps.add(ticker);
+    });
+    saveSeenBuyOpps();
+    syncToCloud(loadData());
+    document.getElementById('portfolioSelect').value = 'stocks';
+    switchPortfolio();
+}
+function acknowledgeSellBanner() {
+    const pDef = PORTFOLIOS.stocks;
+    const data = loadData();
+    const pd = (data.portfolios && data.portfolios.stocks) || { holdings: {} };
+    const totalVal = pDef.order.reduce((sum, t) => sum + ((pd.holdings[t] || { shares: 0 }).shares * getPrice(t)), 0);
+    pDef.order.forEach(ticker => {
+        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        if (h.shares <= 0) return;
+        const price = getPrice(ticker);
+        const value = h.shares * price;
+        const valScore = calcValuationScore(ticker);
+        const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
+        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const targetPct = pDef.targets[ticker].pct;
+        if ((pnlPct >= 50 && valScore < 0.40 && value > 100) || (currentPct >= targetPct * 2 && totalVal > 1000)) seenSellOpps.add(ticker);
+    });
+    saveSeenSellOpps();
+    syncToCloud(loadData());
+    document.getElementById('portfolioSelect').value = 'stocks';
+    switchPortfolio();
+}
+
 // ====== RENDER ALL ======
 function renderAll() {
+    cleanupDismissedOpps();
     renderStockOppsBanner();
     renderSellBanner();
     renderBuyOpps();
@@ -1348,12 +1405,34 @@ function renderAll() {
 }
 
 // ====== BUY OPPORTUNITIES ======
-const dismissedOpps = new Set();
+// Persist dismissed opps in localStorage — auto-reset when stock leaves buy territory
+const dismissedOpps = new Set(JSON.parse(localStorage.getItem('bloom_dismissed_opps') || '[]'));
+const seenBuyOpps = new Set(JSON.parse(localStorage.getItem('bloom_seen_buy_opps') || '[]'));
+const seenSellOpps = new Set(JSON.parse(localStorage.getItem('bloom_seen_sell_opps') || '[]'));
+
+function saveDismissedOpps() { localStorage.setItem('bloom_dismissed_opps', JSON.stringify([...dismissedOpps])); }
+function saveSeenBuyOpps() { localStorage.setItem('bloom_seen_buy_opps', JSON.stringify([...seenBuyOpps])); }
+function saveSeenSellOpps() { localStorage.setItem('bloom_seen_sell_opps', JSON.stringify([...seenSellOpps])); }
 
 function dismissOpp(ticker) {
     dismissedOpps.add(ticker);
+    saveDismissedOpps();
+    syncToCloud(loadData());
     renderBuyOpps();
     renderStockOppsBanner();
+}
+
+// Clean up dismissed opps: if a stock is no longer a buy opp, remove from dismissed so it can reappear fresh
+function cleanupDismissedOpps() {
+    const pDef = PORTFOLIOS.stocks;
+    let changed = false;
+    dismissedOpps.forEach(ticker => {
+        const price = getPrice(ticker);
+        if (price <= 0) return; // skip if prices not loaded yet
+        const valScore = calcValuationScore(ticker);
+        if (valScore < 0.60) { dismissedOpps.delete(ticker); changed = true; }
+    });
+    if (changed) saveDismissedOpps();
 }
 
 function renderBuyOpps() {
@@ -1368,7 +1447,7 @@ function renderBuyOpps() {
         const p = livePrices[ticker] || {};
         const price = p.price || 0;
         const high52 = p.high52 || 0;
-        if (valScore >= 0.70 && price > 0) {
+        if (valScore >= 0.60 && price > 0) {
             const drawdown = high52 > 0 ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
             opps.push({ ticker, valScore, rsi: p.rsi14 || 50, price, drawdown, purpose: pDef.targets[ticker].purpose });
         }
@@ -1384,7 +1463,7 @@ function renderBuyOpps() {
             <div class="buy-opp-stats">
                 RSI <span>${o.rsi.toFixed(0)}</span> &bull;
                 ${o.drawdown > 0 ? o.drawdown + '% off high' : ''} &bull;
-                Score <span>${(o.valScore * 100).toFixed(0)}</span>
+                Score <span>${Math.round((1 - o.valScore) * 100)}</span>
             </div>
             <div style="display:flex; gap:4px; margin-top:0.5rem;">
                 <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 10)">$10</button>
@@ -1539,16 +1618,17 @@ function renderETFGrid() {
         const targetDollar = pDef.hardCap > 0 ? pDef.hardCap * targetPct / 100 : totalVal * targetPct / 100;
         const barPct = targetDollar > 0 ? Math.min(100, value / targetDollar * 100) : 0;
         const valScore = calcValuationScore(ticker);
-        const scoreClass = valScore > 0.6 ? 'score-good' : valScore > 0.3 ? 'score-ok' : 'score-bad';
-        const scoreLabel = valScore > 0.6 ? 'Undervalued' : valScore > 0.3 ? 'Fair' : 'Overvalued';
+        const valDisplay = Math.round((1 - valScore) * 100); // low = cheap, high = expensive
+        const scoreClass = valDisplay <= 40 ? 'score-good' : valDisplay <= 60 ? 'score-ok' : 'score-bad';
+        const scoreLabel = valDisplay <= 40 ? 'Undervalued' : valDisplay <= 60 ? 'Fair' : 'Overvalued';
         const drift = currentPct - targetPct;
         const barClass = Math.abs(drift) < 3 ? 'on' : drift > 0 ? 'over' : 'under';
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
         const changeStr = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
         const isDivETF = pDef.dividendReinvest.includes(ticker);
-        const isBuyOpp = valScore >= 0.70 && price > 0;
+        const isBuyOpp = valScore >= 0.60 && price > 0;
         const pnlPct = costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0;
-        const isTakeProfit = pnlPct >= 50 && valScore < 0.30;
+        const isTakeProfit = pnlPct >= 50 && valScore < 0.40;
         const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
         const trimAmount = isDriftHigh ? value - (totalVal * targetPct / 100) : 0;
         let badgesHtml = '';
@@ -1560,7 +1640,7 @@ function renderETFGrid() {
         card.innerHTML = `
             <div class="etf-ticker">${ticker}</div>
             <div class="etf-purpose">${target.purpose}</div>
-            ${badgesHtml ? '<div style="margin-bottom:0.5rem;">' + badgesHtml + '</div>' : ''}
+            <div style="min-height:1.4rem; margin-bottom:0.25rem;">${badgesHtml}</div>
             <div class="etf-price-row">
                 <div class="etf-price">${price > 0 ? fmt(price) : '--'}</div>
                 <div class="etf-change ${changeClass}">${price > 0 ? changeStr : '--'}</div>
@@ -1573,7 +1653,7 @@ function renderETFGrid() {
                 <div class="etf-bar-inner ${barClass}" style="width:${barPct}%"></div>
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="etf-score ${scoreClass}">${scoreLabel} (${(valScore * 100).toFixed(0)})</span>
+                <span class="etf-score ${scoreClass}">${scoreLabel} (${valDisplay})</span>
                 <span style="font-size:0.6rem; color:var(--text-dim); font-weight:600;">RSI ${rsi.toFixed(0)}</span>
             </div>
             <div class="etf-details">
@@ -1586,6 +1666,7 @@ function renderETFGrid() {
                 <span class="etf-detail-label">P&L</span>
                 <span class="etf-detail-value" style="color:${unrealizedPnL >= 0 ? 'var(--leaf)' : 'var(--red)'}">${(unrealizedPnL >= 0 ? '+' : '') + fmt(unrealizedPnL)}</span>
             </div>
+            <div style="flex:1;"></div>
             <div style="display:flex; gap:0.5rem;">
                 ${isDivETF ? `<button class="btn btn-green etf-div-btn" onclick="openDivModal('${ticker}')">Log Dividend</button>` : ''}
                 ${h.shares > 0 ? `<button class="btn btn-red etf-sell-btn" onclick="openSellModal('${ticker}')">Sell</button>` : ''}
@@ -1986,8 +2067,8 @@ function renderPieChart() {
     if (!canvas) return;
     canvas.addEventListener('click', function(e) {
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left - 90;
-        const y = e.clientY - rect.top - 90;
+        const x = (e.clientX - rect.left) * (180 / rect.width) - 90;
+        const y = (e.clientY - rect.top) * (180 / rect.height) - 90;
         const dist = Math.sqrt(x * x + y * y);
         if (dist < 90 * 0.5 || dist > 90) { pieSelectedTicker = null; renderPieChart(); return; } // tapped center or outside
         let angle = Math.atan2(y, x);
@@ -2003,56 +2084,195 @@ function renderPieChart() {
 })();
 
 // ====== GROWTH CHART ======
+let growthTimeline = [];
+let growthXFn = null, growthYFn = null, growthPad = null, growthMaxVal = 0;
+let growthScrubIdx = -1; // -1 = no scrub active
+let growthShowAll = false; // false = current portfolio, true = all combined
+
+function drawGrowthBase(ctx) {
+    const timeline = growthTimeline;
+    const xFn = growthXFn, yFn = growthYFn, pad = growthPad;
+    const w = 400, h = 200;
+    ctx.clearRect(0, 0, w, h);
+    if (timeline.length < 2) return;
+    // Grid
+    ctx.strokeStyle = '#f0e0e0'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+        const plotH = h - pad.top - pad.bottom;
+        const yy = pad.top + (plotH / 4) * i;
+        ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(w - pad.right, yy); ctx.stroke();
+        ctx.fillStyle = '#9a8e8e'; ctx.font = '600 9px Quicksand'; ctx.textAlign = 'right';
+        const labelVal = growthMaxVal * (1 - i / 4);
+        const labelStr = labelVal >= 1000 ? '$' + (labelVal / 1000).toFixed(1) + 'k' : '$' + Math.round(labelVal);
+        ctx.fillText(labelStr, pad.left - 4, yy + 3);
+    }
+    // Cost basis line
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = '#c0b0b0'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.invested)) : ctx.lineTo(xFn(t.date), yFn(t.invested)); }); ctx.stroke(); ctx.setLineDash([]);
+    // Value line
+    ctx.strokeStyle = '#e88b93'; ctx.lineWidth = 2;
+    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); }); ctx.stroke();
+    // Fill
+    ctx.globalAlpha = 0.12; ctx.fillStyle = '#e88b93';
+    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); });
+    ctx.lineTo(xFn(timeline[timeline.length - 1].date), yFn(0)); ctx.lineTo(xFn(timeline[0].date), yFn(0)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+    // Dates
+    ctx.fillStyle = '#9a8e8e'; ctx.font = '600 8px Quicksand'; ctx.textAlign = 'center';
+    ctx.fillText(timeline[0].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), xFn(timeline[0].date), h - 4);
+    ctx.fillText(timeline[timeline.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), xFn(timeline[timeline.length - 1].date), h - 4);
+}
+
+function drawGrowthScrub(ctx, idx) {
+    const t = growthTimeline[idx];
+    const xFn = growthXFn, yFn = growthYFn, pad = growthPad;
+    const w = 400, h = 200;
+    const px = xFn(t.date), pyVal = yFn(t.total), pyCost = yFn(t.invested);
+    // Vertical crosshair
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(100,80,80,0.4)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px, pad.top); ctx.lineTo(px, h - pad.bottom); ctx.stroke(); ctx.setLineDash([]);
+    // Dots
+    ctx.beginPath(); ctx.arc(px, pyVal, 4, 0, Math.PI * 2); ctx.fillStyle = '#e88b93'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(px, pyCost, 4, 0, Math.PI * 2); ctx.fillStyle = '#c0b0b0'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    // Tooltip
+    const dateStr = t.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+    const valStr = fmt(t.total);
+    const costStr = fmt(t.invested);
+    const retPct = t.invested > 0 ? ((t.total - t.invested) / t.invested * 100).toFixed(1) : '0.0';
+    const retSign = t.total >= t.invested ? '+' : '';
+    const lines = [dateStr, 'Value: ' + valStr, 'Cost: ' + costStr, 'Return: ' + retSign + retPct + '%'];
+    ctx.font = '600 9px Quicksand';
+    const maxLineW = Math.max(...lines.map(l => ctx.measureText(l).width));
+    const boxW = maxLineW + 14, boxH = lines.length * 13 + 10;
+    let bx = px + 10;
+    if (bx + boxW > w - 4) bx = px - boxW - 10;
+    let by = Math.max(pad.top, pyVal - boxH / 2);
+    if (by + boxH > h - pad.bottom) by = h - pad.bottom - boxH;
+    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.strokeStyle = 'rgba(180,160,160,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(bx, by, boxW, boxH, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#3a3a3a'; ctx.textAlign = 'left';
+    lines.forEach((l, i) => {
+        if (i === 0) ctx.font = 'bold 9px Quicksand';
+        else if (i === 3) { ctx.fillStyle = t.total >= t.invested ? '#5c8c6a' : '#c05050'; ctx.font = 'bold 9px Quicksand'; }
+        else ctx.font = '600 9px Quicksand';
+        ctx.fillText(l, bx + 7, by + 13 + i * 13);
+    });
+}
+
+function toggleGrowthMode() {
+    growthShowAll = !growthShowAll;
+    const btn = document.getElementById('growthModeBtn');
+    btn.textContent = growthShowAll ? 'This Portfolio' : 'All Portfolios';
+    btn.style.background = growthShowAll ? 'var(--rose-light)' : 'rgba(255,255,255,0.5)';
+    growthScrubIdx = -1;
+    renderGrowthChart();
+}
+
+function buildGrowthTimeline(portfolioFilter) {
+    const data = loadData();
+    const portfolios = portfolioFilter ? [portfolioFilter] : ['cushion', 'growth', 'ira', 'stocks'];
+    const events = [];
+    portfolios.forEach(pKey => {
+        (data.history || []).filter(h => h.portfolio === pKey).forEach(e => {
+            events.push({ date: new Date(e.date), type: 'dca', portfolio: pKey, amount: e.totalAmount });
+        });
+        (data.dividendHistory || []).filter(d => d.portfolio === pKey).forEach(e => {
+            events.push({ date: new Date(e.date), type: 'div', portfolio: pKey, amount: e.amount });
+        });
+    });
+    events.sort((a, b) => a.date - b.date);
+    const invested = {}, dividends = {};
+    portfolios.forEach(p => { invested[p] = 0; dividends[p] = 0; });
+    const timeline = [];
+    events.forEach(e => {
+        if (e.type === 'dca') invested[e.portfolio] += e.amount;
+        else dividends[e.portfolio] += e.amount;
+        let totalI = 0, totalD = 0;
+        portfolios.forEach(p => { totalI += invested[p]; totalD += dividends[p]; });
+        timeline.push({ date: e.date, invested: totalI, total: totalI + totalD });
+    });
+    // Add current value as final point
+    let currentVal = 0;
+    let totalInvested = 0;
+    portfolios.forEach(pKey => {
+        const pDef = PORTFOLIOS[pKey];
+        const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
+        pDef.order.forEach(t => { currentVal += ((pd.holdings[t] || { shares: 0 }).shares) * getPrice(t); });
+        totalInvested += invested[pKey];
+    });
+    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: totalInvested, total: currentVal });
+    return timeline;
+}
+
 function renderGrowthChart() {
     const canvas = document.getElementById('growthChart');
     const ctx = scaleCanvas(canvas, 400, 200);
-    const data = loadData();
-    const dcaEntries = data.history.filter(h => h.portfolio === currentPortfolio).sort((a, b) => new Date(a.date) - new Date(b.date));
-    const divEntries = data.dividendHistory.filter(d => d.portfolio === currentPortfolio).sort((a, b) => new Date(a.date) - new Date(b.date));
-    const timeline = [];
-    let runI = 0, runD = 0;
-    dcaEntries.forEach(e => { runI += e.totalAmount; timeline.push({ date: new Date(e.date), invested: runI, total: runI + runD }); });
-    divEntries.forEach(e => { runD += e.amount; timeline.push({ date: new Date(e.date), invested: runI, total: runI + runD }); });
-    const currentVal = getTotalValue();
-    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: runI, total: currentVal });
+    const timeline = growthShowAll ? buildGrowthTimeline(null) : buildGrowthTimeline(currentPortfolio);
     timeline.sort((a, b) => a.date - b.date);
-    ctx.clearRect(0, 0, 400, 200);
     const w = 400, h = 200;
     const pad = { top: 10, right: 10, bottom: 25, left: 50 };
     if (timeline.length < 2) {
+        ctx.clearRect(0, 0, w, h);
         ctx.fillStyle = '#5a4e4e'; ctx.font = '600 14px Quicksand'; ctx.textAlign = 'center';
         ctx.fillText('Make 2+ contributions to see growth', w / 2, h / 2);
+        growthTimeline = [];
         return;
     }
     const maxVal = Math.max(...timeline.map(t => Math.max(t.total, t.invested)));
     const minDate = timeline[0].date.getTime(), maxDate = timeline[timeline.length - 1].date.getTime(), dateRange = maxDate - minDate || 1;
     const plotW = w - pad.left - pad.right, plotH = h - pad.top - pad.bottom;
-    function x(d) { return pad.left + ((d.getTime() - minDate) / dateRange) * plotW; }
-    function y(v) { return pad.top + plotH - (maxVal > 0 ? (v / maxVal) * plotH : 0); }
-    // Grid
-    ctx.strokeStyle = '#f0e0e0'; ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 4; i++) {
-        const yy = pad.top + (plotH / 4) * i;
-        ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(w - pad.right, yy); ctx.stroke();
-        ctx.fillStyle = '#9a8e8e'; ctx.font = '600 9px Quicksand'; ctx.textAlign = 'right';
-        ctx.fillText('$' + (maxVal * (1 - i / 4) / 1000).toFixed(1) + 'k', pad.left - 4, yy + 3);
-    }
-    // Cost basis line
-    ctx.setLineDash([4, 3]); ctx.strokeStyle = '#c0b0b0'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(x(t.date), y(t.invested)) : ctx.lineTo(x(t.date), y(t.invested)); }); ctx.stroke(); ctx.setLineDash([]);
-    // Value line
-    ctx.strokeStyle = '#e88b93'; ctx.lineWidth = 2;
-    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(x(t.date), y(t.total)) : ctx.lineTo(x(t.date), y(t.total)); }); ctx.stroke();
-    // Fill
-    ctx.globalAlpha = 0.12; ctx.fillStyle = '#e88b93';
-    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(x(t.date), y(t.total)) : ctx.lineTo(x(t.date), y(t.total)); });
-    ctx.lineTo(x(timeline[timeline.length - 1].date), y(0)); ctx.lineTo(x(timeline[0].date), y(0)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
-    // Dates
-    ctx.fillStyle = '#9a8e8e'; ctx.font = '600 8px Quicksand'; ctx.textAlign = 'center';
-    ctx.fillText(timeline[0].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), x(timeline[0].date), h - 4);
-    ctx.fillText(timeline[timeline.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), x(timeline[timeline.length - 1].date), h - 4);
-    document.getElementById('growthLabel').innerHTML = '<span style="color:#e88b93;">&#x25CF;</span> Portfolio Value &nbsp; <span style="color:#c0b0b0;">- - -</span> Cost Basis';
+    // Store for scrubber interaction
+    growthTimeline = timeline;
+    growthMaxVal = maxVal;
+    growthPad = pad;
+    growthXFn = function(d) { return pad.left + ((d.getTime() - minDate) / dateRange) * plotW; };
+    growthYFn = function(v) { return pad.top + plotH - (maxVal > 0 ? (v / maxVal) * plotH : 0); };
+    drawGrowthBase(ctx);
+    if (growthScrubIdx >= 0 && growthScrubIdx < timeline.length) drawGrowthScrub(ctx, growthScrubIdx);
+    const modeLabel = growthShowAll ? 'All Portfolios' : PORTFOLIOS[currentPortfolio].name;
+    document.getElementById('growthLabel').innerHTML = '<span style="color:#e88b93;">&#x25CF;</span> ' + modeLabel + ' Value &nbsp; <span style="color:#c0b0b0;">- - -</span> Cost Basis';
 }
+
+// Growth chart scrubber interaction
+(function() {
+    const canvas = document.getElementById('growthChart');
+    if (!canvas) return;
+    function handleMove(clientX) {
+        if (growthTimeline.length < 2 || !growthXFn) return;
+        const rect = canvas.getBoundingClientRect();
+        const logicalX = (clientX - rect.left) * (400 / rect.width);
+        // Find nearest timeline point
+        let bestIdx = 0, bestDist = Infinity;
+        for (let i = 0; i < growthTimeline.length; i++) {
+            const d = Math.abs(growthXFn(growthTimeline[i].date) - logicalX);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+        if (growthScrubIdx === bestIdx) return;
+        growthScrubIdx = bestIdx;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawGrowthBase(ctx);
+        drawGrowthScrub(ctx, bestIdx);
+        ctx.restore();
+    }
+    function handleEnd() {
+        growthScrubIdx = -1;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawGrowthBase(ctx);
+        ctx.restore();
+    }
+    canvas.addEventListener('mousemove', function(e) { handleMove(e.clientX); });
+    canvas.addEventListener('mouseleave', handleEnd);
+    canvas.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+        if (e.touches.length > 0) handleMove(e.touches[0].clientX);
+    }, { passive: false });
+    canvas.addEventListener('touchend', handleEnd);
+})();
 
 // ====== WEEKLY DCA SPLITTER ======
 const SPLITTER_KEY = 'dca_splitter_ratios';
@@ -2132,7 +2352,7 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     if (!data.portfolios[portfolioKey]) { data.portfolios[portfolioKey] = { holdings: {} }; pDef.order.forEach(t => { data.portfolios[portfolioKey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
     const pd = data.portfolios[portfolioKey];
     let tickers = pDef.order;
-    if (onlyOpps) { tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.70); if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true }; }
+    if (onlyOpps) { tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.60); if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true }; }
     let totalVal = 0;
     pDef.order.forEach(t => { totalVal += (pd.holdings[t] || { shares: 0 }).shares * getPrice(t); });
     const cap = pDef.hardCap;
@@ -2381,18 +2601,21 @@ function switchPortfolio() {
 // ====== INIT ======
 document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(currentPortfolio);
-    // Restore from cloud only if localStorage is empty (e.g. after cache clear)
-    const hasLocalData = localStorage.getItem(STORAGE_KEY) !== null;
-    if (!hasLocalData) {
-        try {
-            const cloud = await loadFromCloud();
-            if (cloud && cloud.portfolios) {
-                // Merge with defaults to ensure all required fields exist
+    try {
+        const cloud = await loadFromCloud();
+        if (cloud) {
+            const hasLocalData = localStorage.getItem(STORAGE_KEY) !== null;
+            if (!hasLocalData && cloud.portfolios) {
+                // Full restore from cloud when localStorage is empty (cache clear)
                 const restored = Object.assign(createDefaultData(), cloud);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
             }
-        } catch (e) { console.error('Cloud restore error:', e); }
-    }
+            // Always merge seen/dismissed from cloud (union — never loses local or remote)
+            if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
+            if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
+            if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
+        }
+    } catch (e) { console.error('Cloud sync error:', e); }
     refreshPrices();
 });
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
