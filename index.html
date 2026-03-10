@@ -814,7 +814,7 @@
         <div class="splitter-body" id="splitterBody">
             <div class="splitter-total-row">
                 <span class="splitter-total-label">Total $</span>
-                <input type="text" class="splitter-total-input" id="splitterTotal" placeholder="⋆⁺₊⋆ ☾⋆⁺₊⋆" inputmode="decimal" oninput="updateSplitterPreview()">
+                <input type="text" class="splitter-total-input" id="splitterTotal" placeholder="⋆⁺₊⋆ ☾⋆⁺₊⋆" inputmode="decimal" oninput="onSplitterTotalChange()">
             </div>
             <div id="splitterRows"></div>
             <div class="splitter-footer">
@@ -1141,7 +1141,7 @@ async function loadFromCloud() {
 }
 
 function createDefaultData() {
-    const data = { portfolios: {}, history: [], dividendHistory: [] };
+    const data = { portfolios: {}, history: [], dividendHistory: [], splitterRatios: { ...DEFAULT_RATIOS }, splitterTotal: '' };
     for (const [key, pDef] of Object.entries(PORTFOLIOS)) {
         data.portfolios[key] = { holdings: {} };
         for (const ticker of pDef.order) {
@@ -1984,8 +1984,17 @@ function renderGrowthChart() {
 const SPLITTER_KEY = 'dca_splitter_ratios';
 const DEFAULT_RATIOS = { cushion: 50, growth: 40, ira: 0, stocks: 10 };
 let pendingSplitter = null;
-function loadSplitterRatios() { try { return JSON.parse(localStorage.getItem(SPLITTER_KEY)) || { ...DEFAULT_RATIOS }; } catch { return { ...DEFAULT_RATIOS }; } }
-function saveSplitterRatios(ratios) { localStorage.setItem(SPLITTER_KEY, JSON.stringify(ratios)); }
+function loadSplitterRatios() {
+    const data = loadData();
+    if (data.splitterRatios) return data.splitterRatios;
+    try { return JSON.parse(localStorage.getItem(SPLITTER_KEY)) || { ...DEFAULT_RATIOS }; } catch { return { ...DEFAULT_RATIOS }; }
+}
+function saveSplitterRatios(ratios) {
+    localStorage.setItem(SPLITTER_KEY, JSON.stringify(ratios));
+    const data = loadData();
+    data.splitterRatios = ratios;
+    saveData(data);
+}
 function toggleSplitter() {
     const body = document.getElementById('splitterBody');
     body.classList.toggle('open');
@@ -1994,6 +2003,8 @@ function toggleSplitter() {
 }
 function renderSplitterRows() {
     const ratios = loadSplitterRatios();
+    const data = loadData();
+    if (data.splitterTotal) document.getElementById('splitterTotal').value = data.splitterTotal;
     const notes = { cushion: '$108K cap, safety net', growth: 'Long-term compounding', ira: 'Max $7K/yr ($135/wk)', stocks: 'Opportunity-based picks' };
     const themeDollarColor = { cushion: '#e88b93', growth: '#c4703a', ira: '#ff8c00', stocks: '#ff8c00' };
     const dollarColor = themeDollarColor[currentPortfolio] || '#ff8c00';
@@ -2013,6 +2024,13 @@ function getSplitterInputRatios() {
     return ratios;
 }
 function onSplitterPctChange() { saveSplitterRatios(getSplitterInputRatios()); updateSplitterPreview(); }
+function onSplitterTotalChange() {
+    const val = document.getElementById('splitterTotal').value;
+    const data = loadData();
+    data.splitterTotal = val;
+    saveData(data);
+    updateSplitterPreview();
+}
 function updateSplitterPreview() {
     const total = parseFloat(document.getElementById('splitterTotal').value.replace(/,/g, '')) || 0;
     const ratios = getSplitterInputRatios();
