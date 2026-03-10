@@ -1117,13 +1117,22 @@ function saveData(data) {
 // ====== CLOUD SYNC ======
 function syncToCloud(data) {
     try {
-        const json = JSON.stringify(data);
+        // Always include splitter settings alongside portfolios
+        const essential = {
+            portfolios: data.portfolios,
+            splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
+            splitterTotal: data.splitterTotal || '',
+            history: data.history || [],
+            dividendHistory: data.dividendHistory || []
+        };
+        const json = JSON.stringify(essential);
         const encoded = encodeURIComponent(json);
         if (encoded.length < 7000) {
             fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
         } else {
-            const holdingsOnly = JSON.stringify({ portfolios: data.portfolios });
-            fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(holdingsOnly));
+            // Too big — drop history/dividends but keep splitter
+            const slim = { portfolios: data.portfolios, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal };
+            fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
         }
     } catch (e) { console.error('Cloud sync error:', e); }
 }
@@ -2247,17 +2256,16 @@ function switchPortfolio() {
 // ====== INIT ======
 document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(currentPortfolio);
-    // Restore data from cloud if localStorage is empty (e.g. after cache clear)
-    const local = loadData();
-    const hasData = Object.values(local.portfolios || {}).some(p =>
-        Object.values(p.holdings || {}).some(h => h.shares > 0 || h.costBasis > 0)
-    );
-    if (!hasData) {
+    // Always restore from cloud (source of truth) — merge with local
+    try {
         const cloud = await loadFromCloud();
         if (cloud && cloud.portfolios) {
-            saveData(cloud);
+            const local = loadData();
+            // Cloud wins — but preserve any local-only keys
+            const merged = Object.assign({}, local, cloud);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         }
-    }
+    } catch (e) { console.error('Cloud restore error:', e); }
     refreshPrices();
 });
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
