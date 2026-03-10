@@ -1916,14 +1916,26 @@ function renderHistory() {
     `).join('');
 }
 
+// ====== RETINA CANVAS HELPER ======
+function scaleCanvas(canvas, w, h) {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return ctx;
+}
+
 // ====== PIE CHART ======
 function renderPieChart() {
     const canvas = document.getElementById('pieChart');
-    const ctx = canvas.getContext('2d');
+    const ctx = scaleCanvas(canvas, 180, 180);
     const pDef = getPortfolioDef();
     const pd = getPortfolioData();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cx = canvas.width / 2, cy = canvas.height / 2, r = Math.min(cx, cy) - 10;
+    ctx.clearRect(0, 0, 180, 180);
+    const cx = 90, cy = 90, r = 80;
     const slices = pDef.order.map(t => ({ ticker: t, value: (pd.holdings[t] || { shares: 0 }).shares * getPrice(t), color: ETF_COLORS[t] || '#ccc' }));
     const total = slices.reduce((s, sl) => s + sl.value, 0);
     if (total <= 0) {
@@ -1952,7 +1964,7 @@ function renderPieChart() {
 // ====== GROWTH CHART ======
 function renderGrowthChart() {
     const canvas = document.getElementById('growthChart');
-    const ctx = canvas.getContext('2d');
+    const ctx = scaleCanvas(canvas, 400, 200);
     const data = loadData();
     const dcaEntries = data.history.filter(h => h.portfolio === currentPortfolio).sort((a, b) => new Date(a.date) - new Date(b.date));
     const divEntries = data.dividendHistory.filter(d => d.portfolio === currentPortfolio).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1963,8 +1975,8 @@ function renderGrowthChart() {
     const currentVal = getTotalValue();
     if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: runI, total: currentVal });
     timeline.sort((a, b) => a.date - b.date);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, 400, 200);
+    const w = 400, h = 200;
     const pad = { top: 10, right: 10, bottom: 25, left: 50 };
     if (timeline.length < 2) {
         ctx.fillStyle = '#5a4e4e'; ctx.font = '600 14px Quicksand'; ctx.textAlign = 'center';
