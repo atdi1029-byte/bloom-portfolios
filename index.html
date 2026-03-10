@@ -1120,6 +1120,7 @@ function syncToCloud(data) {
         // Always include splitter settings alongside portfolios
         const essential = {
             portfolios: data.portfolios,
+            cash: data.cash || {},
             splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
             splitterTotal: data.splitterTotal || '',
             history: data.history || [],
@@ -1131,7 +1132,7 @@ function syncToCloud(data) {
             fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
         } else {
             // Too big — drop history/dividends but keep splitter
-            const slim = { portfolios: data.portfolios, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal };
+            const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal };
             fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
         }
     } catch (e) { console.error('Cloud sync error:', e); }
@@ -1163,7 +1164,6 @@ function resetPortfolio() {
     if (!confirm('Reset ALL portfolios to zero? This cannot be undone.')) return;
     const data = createDefaultData();
     saveData(data);
-    syncToCloud(data);
     renderAll();
 }
 
@@ -1470,7 +1470,7 @@ function renderStats() {
         specialLabel.textContent = 'Best Performer';
         specialValue.style.cssText = 'color:var(--rose-deep);';
         const pDef = getPortfolioDef();
-        const data = getData();
+        const data = loadData();
         const holdings = data.portfolios[currentPortfolio]?.holdings || {};
         let bestTicker = '-', bestPct = -Infinity;
         pDef.order.forEach(t => {
@@ -1995,11 +1995,9 @@ const DEFAULT_RATIOS = { cushion: 50, growth: 40, ira: 0, stocks: 10 };
 let pendingSplitter = null;
 function loadSplitterRatios() {
     const data = loadData();
-    if (data.splitterRatios) return data.splitterRatios;
-    try { return JSON.parse(localStorage.getItem(SPLITTER_KEY)) || { ...DEFAULT_RATIOS }; } catch { return { ...DEFAULT_RATIOS }; }
+    return data.splitterRatios || { ...DEFAULT_RATIOS };
 }
 function saveSplitterRatios(ratios) {
-    localStorage.setItem(SPLITTER_KEY, JSON.stringify(ratios));
     const data = loadData();
     data.splitterRatios = ratios;
     saveData(data);
@@ -2032,13 +2030,22 @@ function getSplitterInputRatios() {
     ['cushion', 'growth', 'ira', 'stocks'].forEach(key => { const el = document.getElementById('splitter_pct_' + key); ratios[key] = el ? (parseInt(el.value) || 0) : 0; });
     return ratios;
 }
-function onSplitterPctChange() { saveSplitterRatios(getSplitterInputRatios()); updateSplitterPreview(); }
-function onSplitterTotalChange() {
-    const val = document.getElementById('splitterTotal').value;
-    const data = loadData();
-    data.splitterTotal = val;
-    saveData(data);
+let splitterSaveTimer = null;
+function onSplitterPctChange() {
     updateSplitterPreview();
+    // Debounce save — only sync after user stops typing for 800ms
+    clearTimeout(splitterSaveTimer);
+    splitterSaveTimer = setTimeout(() => { saveSplitterRatios(getSplitterInputRatios()); }, 800);
+}
+function onSplitterTotalChange() {
+    updateSplitterPreview();
+    clearTimeout(splitterSaveTimer);
+    splitterSaveTimer = setTimeout(() => {
+        const val = document.getElementById('splitterTotal').value;
+        const data = loadData();
+        data.splitterTotal = val;
+        saveData(data);
+    }, 800);
 }
 function updateSplitterPreview() {
     const total = parseFloat(document.getElementById('splitterTotal').value.replace(/,/g, '')) || 0;
@@ -2142,6 +2149,7 @@ function confirmSplitter() {
         r.allocations.forEach(a => { if (!pd.holdings[a.ticker]) pd.holdings[a.ticker] = { shares: 0, costBasis: 0 }; pd.holdings[a.ticker].shares += a.shares; pd.holdings[a.ticker].costBasis += a.amount; });
         data.history.push({ id: 'split_' + Date.now() + '_' + r.portfolioKey, date: new Date().toISOString(), portfolio: r.portfolioKey, totalAmount: r.totalAmount, type: 'dca', allocations: r.allocations.map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
     });
+    data.splitterTotal = '';
     saveData(data);
     pendingSplitter = null;
     document.getElementById('splitterResult').classList.remove('show');
@@ -2256,16 +2264,18 @@ function switchPortfolio() {
 // ====== INIT ======
 document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(currentPortfolio);
-    // Always restore from cloud (source of truth) — merge with local
-    try {
-        const cloud = await loadFromCloud();
-        if (cloud && cloud.portfolios) {
-            const local = loadData();
-            // Cloud wins — but preserve any local-only keys
-            const merged = Object.assign({}, local, cloud);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        }
-    } catch (e) { console.error('Cloud restore error:', e); }
+    // Restore from cloud only if localStorage is empty (e.g. after cache clear)
+    const hasLocalData = localStorage.getItem(STORAGE_KEY) !== null;
+    if (!hasLocalData) {
+        try {
+            const cloud = await loadFromCloud();
+            if (cloud && cloud.portfolios) {
+                // Merge with defaults to ensure all required fields exist
+                const restored = Object.assign(createDefaultData(), cloud);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+            }
+        } catch (e) { console.error('Cloud restore error:', e); }
+    }
     refreshPrices();
 });
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
