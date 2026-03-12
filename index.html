@@ -1023,6 +1023,7 @@
 // ====== CONFIG ======
 const API_BASE = 'https://script.google.com/macros/s/AKfycbwVwBpJsq5kybfAuo8DpvODludwPehRWeT81bRe1PftdSuYCXv90FnewvIsZtCZIUv6Cg/exec';
 const STORAGE_KEY = 'dca_portfolio_v1';
+let syncReady = false;
 
 // ====== PORTFOLIO DEFINITIONS ======
 const PORTFOLIOS = {
@@ -1129,12 +1130,14 @@ function loadData() {
 }
 
 function saveData(data) {
+    data.lastModified = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     syncToCloud(data);
 }
 
 // ====== CLOUD SYNC ======
 function syncToCloud(data) {
+    if (!syncReady) return;
     try {
         // Always include splitter settings alongside portfolios
         const essential = {
@@ -1144,6 +1147,7 @@ function syncToCloud(data) {
             splitterTotal: data.splitterTotal || '',
             history: data.history || [],
             dividendHistory: data.dividendHistory || [],
+            lastModified: data.lastModified || Date.now(),
             seenBuyOpps: [...seenBuyOpps],
             seenSellOpps: [...seenSellOpps],
             dismissedOpps: [...dismissedOpps]
@@ -1154,7 +1158,7 @@ function syncToCloud(data) {
             fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
         } else {
             // Too big — drop history/dividends but keep splitter
-            const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
+            const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, lastModified: data.lastModified || Date.now(), seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
             fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
         }
     } catch (e) { console.error('Cloud sync error:', e); }
@@ -2604,10 +2608,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(currentPortfolio);
     try {
         const cloud = await loadFromCloud();
-        if (cloud) {
-            const hasLocalData = localStorage.getItem(STORAGE_KEY) !== null;
-            if (!hasLocalData && cloud.portfolios) {
-                // Full restore from cloud when localStorage is empty (cache clear)
+        if (cloud && cloud.portfolios) {
+            const local = loadData();
+            const localTs = local.lastModified || 0;
+            const cloudTs = cloud.lastModified || 0;
+            // Use cloud data if it's newer OR if no local timestamp (legacy data)
+            if (cloudTs >= localTs || !localTs) {
                 const restored = Object.assign(createDefaultData(), cloud);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
             }
@@ -2617,8 +2623,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
         }
     } catch (e) { console.error('Cloud sync error:', e); }
+    syncReady = true;
     refreshPrices();
 });
+
+// Auto-pull from cloud when app comes back to foreground
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && syncReady) {
+        try {
+            const cloud = await loadFromCloud();
+            if (cloud && cloud.portfolios) {
+                const local = loadData();
+                const localTs = local.lastModified || 0;
+                const cloudTs = cloud.lastModified || 0;
+                if (cloudTs > localTs) {
+                    const restored = Object.assign(createDefaultData(), cloud);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+                    renderAll();
+                }
+                if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
+                if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
+                if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
+            }
+        } catch (e) { console.error('Cloud resume sync error:', e); }
+    }
+});
+
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
 </script>
 </body>
