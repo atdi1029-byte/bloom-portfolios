@@ -950,7 +950,10 @@
                 <div class="chart-title" style="margin-bottom:0;">Growth Over Time</div>
                 <button onclick="toggleGrowthMode()" id="growthModeBtn" style="font-size:0.55rem; padding:2px 8px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.5); color:var(--text-dim); font-weight:600; cursor:pointer; font-family:'Quicksand',sans-serif;">All Portfolios</button>
             </div>
-            <canvas id="growthChart" width="400" height="200" class="chart-canvas"></canvas>
+            <div style="position:relative;">
+                <canvas id="growthChart" width="400" height="200" class="chart-canvas"></canvas>
+                <div id="growthEmpty" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; font-size:0.75rem; color:var(--text-dim); font-weight:600; text-align:center; padding:1rem;">Make 2+ DCA contributions to see growth chart</div>
+            </div>
             <div style="font-size:0.5rem; color:var(--text-dim); margin-top:4px; text-align:center; font-weight:500;" id="growthLabel">Based on DCA history</div>
         </div>
     </div>
@@ -1157,9 +1160,18 @@ function syncToCloud(data) {
         if (encoded.length < 7000) {
             fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
         } else {
-            // Too big — drop history/dividends but keep splitter
-            const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, lastModified: data.lastModified || Date.now(), seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
-            fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
+            // Too big — try keeping history without allocations detail (saves ~60% of history size)
+            const trimmedHistory = (data.history || []).map(h => ({ id: h.id, date: h.date, portfolio: h.portfolio, totalAmount: h.totalAmount, type: h.type, ticker: h.ticker }));
+            const trimmedDivs = (data.dividendHistory || []).map(d => ({ date: d.date, portfolio: d.portfolio, amount: d.amount, ticker: d.ticker }));
+            const medium = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, history: trimmedHistory, dividendHistory: trimmedDivs, lastModified: data.lastModified || Date.now(), seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
+            const mediumEncoded = encodeURIComponent(JSON.stringify(medium));
+            if (mediumEncoded.length < 7000) {
+                fireGet(API_BASE + '?action=save_dca_data&data=' + mediumEncoded);
+            } else {
+                // Still too big — drop history entirely
+                const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, lastModified: data.lastModified || Date.now(), seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
+                fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
+            }
         }
     } catch (e) { console.error('Cloud sync error:', e); }
 }
@@ -2180,7 +2192,11 @@ function buildGrowthTimeline(portfolioFilter) {
     const events = [];
     portfolios.forEach(pKey => {
         (data.history || []).filter(h => h.portfolio === pKey).forEach(e => {
-            events.push({ date: new Date(e.date), type: 'dca', portfolio: pKey, amount: e.totalAmount });
+            if (e.type === 'sell') {
+                events.push({ date: new Date(e.date), type: 'sell', portfolio: pKey, amount: e.totalAmount });
+            } else {
+                events.push({ date: new Date(e.date), type: 'dca', portfolio: pKey, amount: e.totalAmount });
+            }
         });
         (data.dividendHistory || []).filter(d => d.portfolio === pKey).forEach(e => {
             events.push({ date: new Date(e.date), type: 'div', portfolio: pKey, amount: e.amount });
@@ -2192,10 +2208,11 @@ function buildGrowthTimeline(portfolioFilter) {
     const timeline = [];
     events.forEach(e => {
         if (e.type === 'dca') invested[e.portfolio] += e.amount;
+        else if (e.type === 'sell') invested[e.portfolio] -= e.amount;
         else dividends[e.portfolio] += e.amount;
         let totalI = 0, totalD = 0;
         portfolios.forEach(p => { totalI += invested[p]; totalD += dividends[p]; });
-        timeline.push({ date: e.date, invested: totalI, total: totalI + totalD });
+        timeline.push({ date: e.date, invested: Math.max(0, totalI), total: Math.max(0, totalI + totalD) });
     });
     // Add current value as final point
     let currentVal = 0;
@@ -2206,37 +2223,72 @@ function buildGrowthTimeline(portfolioFilter) {
         pDef.order.forEach(t => { currentVal += ((pd.holdings[t] || { shares: 0 }).shares) * getPrice(t); });
         totalInvested += invested[pKey];
     });
-    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: totalInvested, total: currentVal });
+    totalInvested = Math.max(0, totalInvested);
+    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: totalInvested, total: Math.max(currentVal, totalInvested) });
     return timeline;
 }
 
 function renderGrowthChart() {
     const canvas = document.getElementById('growthChart');
+    const emptyEl = document.getElementById('growthEmpty');
     const ctx = scaleCanvas(canvas, 400, 200);
-    const timeline = growthShowAll ? buildGrowthTimeline(null) : buildGrowthTimeline(currentPortfolio);
-    timeline.sort((a, b) => a.date - b.date);
     const w = 400, h = 200;
-    const pad = { top: 10, right: 10, bottom: 25, left: 50 };
-    if (timeline.length < 2) {
+    try {
+        let timeline = growthShowAll ? buildGrowthTimeline(null) : buildGrowthTimeline(currentPortfolio);
+        // Filter out invalid dates
+        timeline = timeline.filter(t => t.date instanceof Date && !isNaN(t.date.getTime()));
+        timeline.sort((a, b) => a.date - b.date);
+        const pad = { top: 10, right: 10, bottom: 25, left: 50 };
+        if (timeline.length < 2) {
+            ctx.clearRect(0, 0, w, h);
+            growthTimeline = [];
+            if (emptyEl) {
+                // Show current value if holdings exist but no history
+                const data = loadData();
+                const portfolios = growthShowAll ? ['cushion', 'growth', 'ira', 'stocks'] : [currentPortfolio];
+                let val = 0, cost = 0;
+                portfolios.forEach(pKey => {
+                    const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
+                    const pDef = PORTFOLIOS[pKey];
+                    if (pDef) pDef.order.forEach(t => {
+                        const h = pd.holdings[t] || { shares: 0, costBasis: 0 };
+                        val += h.shares * getPrice(t);
+                        cost += h.costBasis || 0;
+                    });
+                });
+                if (val > 0) {
+                    const fmt = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const gain = val - cost;
+                    const gainPct = cost > 0 ? ((gain / cost) * 100).toFixed(1) : '0.0';
+                    const gainColor = gain >= 0 ? 'var(--leaf)' : 'var(--red)';
+                    emptyEl.innerHTML = `<div>Current: <b>${fmt(val)}</b> · Cost: <b>${fmt(cost)}</b><br><span style="color:${gainColor}; font-size:0.65rem;">${gain >= 0 ? '+' : ''}${fmt(gain)} (${gainPct}%)</span><br><span style="font-size:0.6rem; margin-top:4px; display:inline-block;">DCA history needed to chart growth over time</span></div>`;
+                } else {
+                    emptyEl.textContent = 'Make 2+ DCA contributions to see growth chart';
+                }
+                emptyEl.style.display = 'flex';
+            }
+            return;
+        }
+        if (emptyEl) emptyEl.style.display = 'none';
+        const maxVal = Math.max(...timeline.map(t => Math.max(t.total, t.invested)));
+        const minDate = timeline[0].date.getTime(), maxDate = timeline[timeline.length - 1].date.getTime(), dateRange = maxDate - minDate || 1;
+        const plotW = w - pad.left - pad.right, plotH = h - pad.top - pad.bottom;
+        // Store for scrubber interaction
+        growthTimeline = timeline;
+        growthMaxVal = maxVal;
+        growthPad = pad;
+        growthXFn = function(d) { return pad.left + ((d.getTime() - minDate) / dateRange) * plotW; };
+        growthYFn = function(v) { return pad.top + plotH - (maxVal > 0 ? (v / maxVal) * plotH : 0); };
+        drawGrowthBase(ctx);
+        if (growthScrubIdx >= 0 && growthScrubIdx < timeline.length) drawGrowthScrub(ctx, growthScrubIdx);
+        const modeLabel = growthShowAll ? 'All Portfolios' : PORTFOLIOS[currentPortfolio].name;
+        document.getElementById('growthLabel').innerHTML = '<span style="color:#e88b93;">&#x25CF;</span> ' + modeLabel + ' Value &nbsp; <span style="color:#c0b0b0;">- - -</span> Cost Basis';
+    } catch (err) {
+        console.error('Growth chart error:', err);
         ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = '#5a4e4e'; ctx.font = '600 14px Quicksand'; ctx.textAlign = 'center';
-        ctx.fillText('Make 2+ contributions to see growth', w / 2, h / 2);
         growthTimeline = [];
-        return;
+        if (emptyEl) { emptyEl.textContent = 'Chart error — check console'; emptyEl.style.display = 'flex'; }
     }
-    const maxVal = Math.max(...timeline.map(t => Math.max(t.total, t.invested)));
-    const minDate = timeline[0].date.getTime(), maxDate = timeline[timeline.length - 1].date.getTime(), dateRange = maxDate - minDate || 1;
-    const plotW = w - pad.left - pad.right, plotH = h - pad.top - pad.bottom;
-    // Store for scrubber interaction
-    growthTimeline = timeline;
-    growthMaxVal = maxVal;
-    growthPad = pad;
-    growthXFn = function(d) { return pad.left + ((d.getTime() - minDate) / dateRange) * plotW; };
-    growthYFn = function(v) { return pad.top + plotH - (maxVal > 0 ? (v / maxVal) * plotH : 0); };
-    drawGrowthBase(ctx);
-    if (growthScrubIdx >= 0 && growthScrubIdx < timeline.length) drawGrowthScrub(ctx, growthScrubIdx);
-    const modeLabel = growthShowAll ? 'All Portfolios' : PORTFOLIOS[currentPortfolio].name;
-    document.getElementById('growthLabel').innerHTML = '<span style="color:#e88b93;">&#x25CF;</span> ' + modeLabel + ' Value &nbsp; <span style="color:#c0b0b0;">- - -</span> Cost Basis';
 }
 
 // Growth chart scrubber interaction
@@ -2615,6 +2667,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Use cloud data if it's newer OR if no local timestamp (legacy data)
             if (cloudTs >= localTs || !localTs) {
                 const restored = Object.assign(createDefaultData(), cloud);
+                // Preserve local history/dividends if cloud doesn't have them (stripped during sync)
+                if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
+                    restored.history = local.history;
+                }
+                if ((!restored.dividendHistory || restored.dividendHistory.length === 0) && local.dividendHistory && local.dividendHistory.length > 0) {
+                    restored.dividendHistory = local.dividendHistory;
+                }
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
             }
             // Always merge seen/dismissed from cloud (union — never loses local or remote)
@@ -2638,6 +2697,13 @@ document.addEventListener('visibilitychange', async () => {
                 const cloudTs = cloud.lastModified || 0;
                 if (cloudTs > localTs) {
                     const restored = Object.assign(createDefaultData(), cloud);
+                    // Preserve local history/dividends if cloud doesn't have them
+                    if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
+                        restored.history = local.history;
+                    }
+                    if ((!restored.dividendHistory || restored.dividendHistory.length === 0) && local.dividendHistory && local.dividendHistory.length > 0) {
+                        restored.dividendHistory = local.dividendHistory;
+                    }
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
                     renderAll();
                 }
