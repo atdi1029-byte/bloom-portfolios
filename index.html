@@ -2224,7 +2224,23 @@ function buildGrowthTimeline(portfolioFilter) {
         totalInvested += invested[pKey];
     });
     totalInvested = Math.max(0, totalInvested);
-    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: totalInvested, total: Math.max(currentVal, totalInvested) });
+    // If no history but holdings exist, synthesize a starting point from cost basis
+    if (timeline.length === 0 && currentVal > 0) {
+        let totalCost = 0;
+        portfolios.forEach(pKey => {
+            const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
+            const pDef = PORTFOLIOS[pKey];
+            if (pDef) pDef.order.forEach(t => { totalCost += (pd.holdings[t] || {}).costBasis || 0; });
+        });
+        if (totalCost > 0) {
+            // Create a synthetic start point 30 days ago at cost basis
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            timeline.push({ date: startDate, invested: totalCost, total: totalCost });
+            totalInvested = totalCost;
+        }
+    }
+    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: totalInvested > 0 ? totalInvested : currentVal, total: currentVal });
     return timeline;
 }
 
