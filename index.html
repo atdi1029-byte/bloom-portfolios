@@ -1581,7 +1581,7 @@ function renderStats() {
         special.style.display = '';
         specialLabel.textContent = 'Years Covered';
         const years = totalVal / (getPortfolioDef().yearlyExpense || 27000);
-        specialValue.textContent = years.toFixed(1) + ' yrs';
+        specialValue.textContent = years.toFixed(2) + ' yrs';
         specialValue.style.color = 'var(--rose-deep)';
     } else if (currentPortfolio === 'ira') {
         special.style.display = '';
