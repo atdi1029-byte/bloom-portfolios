@@ -818,8 +818,6 @@
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
-            <button class="btn btn-green" onclick="applyRobinhoodFix()" style="font-size:0.55rem;">Fix Shares</button>
-            <button class="btn" onclick="openReconcile()" style="font-size:0.55rem;">Reconcile</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
             <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
         </div>
@@ -1726,7 +1724,8 @@ function calcValuationScore(ticker) {
 }
 
 // ====== SMART DCA ALGORITHM ======
-function previewDCA() {
+async function previewDCA() {
+    await refreshPrices(); // Always get fresh prices before calculating
     const newMoney = parseFloat(document.getElementById('dcaAmount').value.replace(/,/g, '')) || 0;
     const useCash = document.getElementById('dcaUseCash').checked;
     const cashToUse = useCash ? getCash() : 0;
@@ -2580,7 +2579,10 @@ function toggleSplitter() {
     const body = document.getElementById('splitterBody');
     body.classList.toggle('open');
     document.getElementById('splitterToggle').textContent = body.classList.contains('open') ? '- Hide' : '+ Show';
-    if (body.classList.contains('open')) renderSplitterRows();
+    if (body.classList.contains('open')) {
+        refreshPrices(); // Always fetch fresh prices when opening splitter
+        renderSplitterRows();
+    }
 }
 function renderSplitterRows() {
     const ratios = loadSplitterRatios();
@@ -2671,7 +2673,8 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     return { portfolioKey, capped: false, allocations, totalAmount: effectiveAmount };
 }
 
-function previewSplitter() {
+async function previewSplitter() {
+    await refreshPrices(); // Always get fresh prices before calculating
     const total = parseFloat(document.getElementById('splitterTotal').value.replace(/,/g, '')) || 0;
     const ratios = getSplitterInputRatios();
     if (total <= 0 || Object.values(ratios).reduce((s, v) => s + v, 0) !== 100) return;
