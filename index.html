@@ -1904,12 +1904,36 @@ function openEditModal() {
     body.innerHTML = '';
     pDef.order.forEach(ticker => {
         const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+        const avgCost = h.shares > 0 ? (h.costBasis / h.shares).toFixed(2) : '0.00';
         const row = document.createElement('div');
         row.className = 'modal-row';
-        row.innerHTML = `<label>${ticker}</label><input type="text" class="modal-input" id="edit_shares_${ticker}" value="${h.shares.toFixed(4)}" inputmode="decimal"><span style="font-size:0.6rem; color:var(--text-dim); font-weight:500;">shares</span><input type="text" class="modal-input" id="edit_cost_${ticker}" value="${h.costBasis.toFixed(2)}" inputmode="decimal"><span style="font-size:0.6rem; color:var(--text-dim); font-weight:500;">cost $</span>`;
+        row.style.cssText = 'flex-wrap:wrap; gap:4px; padding:8px 0; border-bottom:1px solid var(--border-light);';
+        row.innerHTML = `
+            <div style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-weight:700; color:var(--rose-deep); font-size:0.75rem;">${ticker}</label>
+                <span style="font-size:0.55rem; color:var(--text-dim);">${h.shares.toFixed(4)} shares</span>
+            </div>
+            <div style="width:100%; display:flex; gap:6px; align-items:center;">
+                <span style="font-size:0.55rem; color:var(--text-dim); font-weight:600; white-space:nowrap;">RH Avg Cost $</span>
+                <input type="text" class="modal-input" id="edit_avg_${ticker}" value="${avgCost}" inputmode="decimal" style="width:80px; font-size:0.7rem; text-align:right;" oninput="updateEditCost('${ticker}')">
+                <span style="font-size:0.55rem; color:var(--text-dim); font-weight:600; white-space:nowrap;">Total Cost $</span>
+                <input type="text" class="modal-input" id="edit_cost_${ticker}" value="${h.costBasis.toFixed(2)}" inputmode="decimal" style="width:80px; font-size:0.7rem; text-align:right;" oninput="updateEditAvg('${ticker}')">
+            </div>`;
         body.appendChild(row);
     });
     document.getElementById('editModal').classList.add('show');
+}
+function updateEditCost(ticker) {
+    const pd = getPortfolioData();
+    const shares = (pd.holdings[ticker] || { shares: 0 }).shares;
+    const avgCost = parseFloat(document.getElementById('edit_avg_' + ticker).value.replace(/,/g, '')) || 0;
+    document.getElementById('edit_cost_' + ticker).value = (avgCost * shares).toFixed(2);
+}
+function updateEditAvg(ticker) {
+    const pd = getPortfolioData();
+    const shares = (pd.holdings[ticker] || { shares: 0 }).shares;
+    const totalCost = parseFloat(document.getElementById('edit_cost_' + ticker).value.replace(/,/g, '')) || 0;
+    document.getElementById('edit_avg_' + ticker).value = shares > 0 ? (totalCost / shares).toFixed(2) : '0.00';
 }
 function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
 function saveHoldings() {
@@ -1918,8 +1942,9 @@ function saveHoldings() {
     if (!data.portfolios[currentPortfolio]) data.portfolios[currentPortfolio] = { holdings: {} };
     const pd = data.portfolios[currentPortfolio];
     pDef.order.forEach(ticker => {
+        const currentShares = (pd.holdings[ticker] || { shares: 0 }).shares;
         pd.holdings[ticker] = {
-            shares: parseFloat(document.getElementById('edit_shares_' + ticker).value.replace(/,/g, '')) || 0,
+            shares: currentShares,
             costBasis: parseFloat(document.getElementById('edit_cost_' + ticker).value.replace(/,/g, '')) || 0
         };
     });
