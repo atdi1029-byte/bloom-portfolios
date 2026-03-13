@@ -2431,14 +2431,18 @@ function buildGrowthTimeline(portfolioFilter) {
     });
     // Add current value as final point
     let currentVal = 0;
-    let totalInvested = 0;
+    let actualCostBasis = 0; // from portfolio data (always correct)
     portfolios.forEach(pKey => {
         const pDef = PORTFOLIOS[pKey];
         const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
-        pDef.order.forEach(t => { currentVal += ((pd.holdings[t] || { shares: 0 }).shares) * getPrice(t); });
-        totalInvested += invested[pKey];
+        pDef.order.forEach(t => {
+            const h = pd.holdings[t] || { shares: 0, costBasis: 0 };
+            currentVal += h.shares * getPrice(t);
+            actualCostBasis += h.costBasis;
+        });
     });
-    totalInvested = Math.max(0, totalInvested);
+    // Use actual cost basis from holdings (history may be incomplete due to cloud sync trimming)
+    const totalInvested = actualCostBasis;
     // If no history but holdings exist, synthesize a starting point from cost basis
     if (timeline.length === 0 && currentVal > 0) {
         let totalCost = 0;
