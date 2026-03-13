@@ -1835,9 +1835,10 @@ function confirmDCA() {
 // ====== DIVIDEND LOGGING ======
 function openDivModal(ticker) { divLogTicker = ticker; document.getElementById('divModalTitle').textContent = 'Log Dividend — ' + ticker; document.getElementById('divAmount').value = ''; document.getElementById('divModal').classList.add('show'); }
 function closeDivModal() { document.getElementById('divModal').classList.remove('show'); divLogTicker = ''; }
-function confirmDividend() {
+async function confirmDividend() {
     const amount = parseFloat(document.getElementById('divAmount').value.replace(/,/g, ''));
     if (!amount || amount <= 0 || !divLogTicker) return;
+    await refreshPrices();
     const price = getPrice(divLogTicker);
     const shares = price > 0 ? amount / price : 0;
     const data = loadData();
@@ -1874,9 +1875,10 @@ function openSellModal(ticker) {
     };
 }
 function closeSellModal() { document.getElementById('sellModal').classList.remove('show'); sellTicker = ''; }
-function confirmSell() {
+async function confirmSell() {
     const amount = parseFloat(document.getElementById('sellAmount').value.replace(/,/g, ''));
     if (!amount || amount <= 0 || !sellTicker) return;
+    await refreshPrices();
     const price = getPrice(sellTicker);
     if (price <= 0) return;
     const sharesToSell = amount / price;
