@@ -1506,7 +1506,8 @@ function renderBuyOpps() {
     `).join('');
 }
 
-function quickBuy(ticker, amount) {
+async function quickBuy(ticker, amount) {
+    await refreshPrices(); // Fresh prices before calculating shares
     const price = getPrice(ticker);
     if (price <= 0) return;
     const shares = amount / price;
@@ -1525,11 +1526,11 @@ function quickBuy(ticker, amount) {
     renderAll();
 }
 
-function quickBuyCustom(ticker) {
+async function quickBuyCustom(ticker) {
     const amount = prompt('Buy ' + ticker + ' — Enter dollar amount:');
     if (!amount) return;
     const val = parseFloat(amount.replace(/,/g, ''));
-    if (val > 0) quickBuy(ticker, val);
+    if (val > 0) await quickBuy(ticker, val);
 }
 
 // ====== PROGRESS BAR ======
