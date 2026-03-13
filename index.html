@@ -700,6 +700,8 @@
         .history-type.dca { background: rgba(91,164,230,0.12); color: var(--sky); }
         .history-type.div { background: rgba(92,140,106,0.12); color: var(--leaf); }
         .history-type.sell { background: rgba(212,90,90,0.12); color: var(--red); }
+        .history-undo { font-size: 0.55rem; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--red); color: var(--red); background: rgba(212,90,90,0.08); cursor: pointer; font-weight: 700; white-space: nowrap; margin-left: 6px; }
+        .history-undo:active { background: rgba(212,90,90,0.25); }
 
         /* ============ MODALS ============ */
         .modal-overlay {
@@ -816,6 +818,7 @@
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
+            <button class="btn" onclick="openReconcile()" style="font-size:0.55rem;">Reconcile</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
             <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
         </div>
@@ -985,6 +988,19 @@
         <div class="modal-actions">
             <button class="btn btn-red" onclick="closeEditModal()">Cancel</button>
             <button class="btn btn-green" onclick="saveHoldings()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- RECONCILE MODAL -->
+<div class="modal-overlay" id="reconcileModal" onclick="if(event.target===this)closeReconcile()">
+    <div class="modal" style="max-height:85vh; overflow-y:auto; max-width:500px;">
+        <div class="modal-title">Reconcile with Robinhood</div>
+        <div style="font-size:0.6rem; color:var(--text-dim); margin-bottom:0.75rem; font-weight:500;">Enter actual share counts from Robinhood. Bloom will adjust all portfolios to match.</div>
+        <div id="reconcileBody"></div>
+        <div class="modal-actions">
+            <button class="btn btn-red" onclick="closeReconcile()">Cancel</button>
+            <button class="btn btn-green" onclick="saveReconcile()">Fix All</button>
         </div>
     </div>
 </div>
@@ -1912,6 +1928,93 @@ function saveHoldings() {
     renderAll();
 }
 
+// ====== RECONCILE (FIX SHARES TO MATCH ROBINHOOD) ======
+function openReconcile() {
+    const data = loadData();
+    // Build map of all unique tickers across all portfolios
+    const tickerMap = {}; // ticker -> { totalShares, totalCost, portfolios: [{key, shares, cost}] }
+    for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+        const pd = data.portfolios[pKey] || { holdings: {} };
+        pDef.order.forEach(ticker => {
+            const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
+            if (!tickerMap[ticker]) tickerMap[ticker] = { totalShares: 0, totalCost: 0, portfolios: [] };
+            tickerMap[ticker].totalShares += h.shares;
+            tickerMap[ticker].totalCost += h.costBasis;
+            if (h.shares > 0) tickerMap[ticker].portfolios.push({ key: pKey, name: pDef.name, shares: h.shares, cost: h.costBasis });
+        });
+    }
+    const body = document.getElementById('reconcileBody');
+    const tickers = Object.keys(tickerMap).sort();
+    body.innerHTML = tickers.map(ticker => {
+        const t = tickerMap[ticker];
+        const price = getPrice(ticker);
+        const portList = t.portfolios.map(p => p.name.split(' ')[0] + ': ' + p.shares.toFixed(4)).join(', ');
+        return `<div class="modal-row" style="flex-wrap:wrap; gap:4px; padding:6px 0; border-bottom:1px solid var(--border-light);">
+            <div style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-weight:700; color:var(--rose-deep); font-size:0.75rem;">${ticker}</label>
+                <span style="font-size:0.55rem; color:var(--text-dim);">@ ${fmt(price)}</span>
+            </div>
+            <div style="width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div style="flex:1;">
+                    <div style="font-size:0.55rem; color:var(--text-dim); font-weight:600;">Bloom: ${t.totalShares.toFixed(4)}</div>
+                    <div style="font-size:0.5rem; color:var(--text-dim);">${portList || 'none'}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="font-size:0.55rem; color:var(--text-dim); font-weight:600;">RH:</span>
+                    <input type="text" class="modal-input" id="rec_${ticker.replace('.', '_')}" value="${t.totalShares.toFixed(6)}" inputmode="decimal" style="width:90px; font-size:0.7rem; text-align:right;">
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('reconcileModal').classList.add('show');
+}
+function closeReconcile() { document.getElementById('reconcileModal').classList.remove('show'); }
+function saveReconcile() {
+    const data = loadData();
+    // For each ticker, get the new total shares and scale across portfolios proportionally
+    const allTickers = new Set();
+    for (const pDef of Object.values(PORTFOLIOS)) pDef.order.forEach(t => allTickers.add(t));
+    allTickers.forEach(ticker => {
+        const inputId = 'rec_' + ticker.replace('.', '_');
+        const el = document.getElementById(inputId);
+        if (!el) return;
+        const newTotal = parseFloat(el.value.replace(/,/g, '')) || 0;
+        // Get current total across all portfolios
+        let currentTotal = 0;
+        const portHoldings = [];
+        for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+            if (!pDef.order.includes(ticker)) continue;
+            const pd = data.portfolios[pKey];
+            if (!pd || !pd.holdings[ticker]) continue;
+            const h = pd.holdings[ticker];
+            currentTotal += h.shares;
+            portHoldings.push({ key: pKey, holdings: h });
+        }
+        if (currentTotal === 0 && newTotal === 0) return;
+        if (currentTotal === 0 && newTotal > 0) {
+            // No shares exist yet — put all in the first portfolio that has this ticker
+            for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+                if (pDef.order.includes(ticker)) {
+                    if (!data.portfolios[pKey]) data.portfolios[pKey] = { holdings: {} };
+                    if (!data.portfolios[pKey].holdings[ticker]) data.portfolios[pKey].holdings[ticker] = { shares: 0, costBasis: 0 };
+                    data.portfolios[pKey].holdings[ticker].shares = newTotal;
+                    break;
+                }
+            }
+            return;
+        }
+        const ratio = newTotal / currentTotal;
+        portHoldings.forEach(ph => {
+            ph.holdings.shares = ph.holdings.shares * ratio;
+            // Keep cost basis the same — that's the actual money invested, which is correct
+            if (ph.holdings.shares < 0.0001) { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }
+        });
+    });
+    saveData(data);
+    closeReconcile();
+    renderAll();
+}
+
 // ====== ALERTS ======
 function renderAlerts() {
     const pDef = getPortfolioDef();
@@ -1987,6 +2090,57 @@ function toggleHistory() {
     body.classList.toggle('open');
     toggle.textContent = body.classList.contains('open') ? '- Hide' : '+ Show';
 }
+function undoTransaction(historyId) {
+    if (!confirm('Undo this transaction? It will reverse the shares and cost basis.')) return;
+    const data = loadData();
+    const idx = data.history.findIndex(h => h.id === historyId);
+    if (idx === -1) { alert('Transaction not found'); return; }
+    const h = data.history[idx];
+    const pd = data.portfolios[h.portfolio];
+    if (!pd) { alert('Portfolio not found'); return; }
+    if (h.type === 'sell') {
+        // Undo sell: add shares back, restore cost basis
+        if (pd.holdings[h.ticker]) {
+            const avgCost = h.price > 0 && h.shares > 0 ? (h.totalAmount - (h.profit || 0)) / h.shares : 0;
+            pd.holdings[h.ticker].shares += h.shares;
+            pd.holdings[h.ticker].costBasis += avgCost * h.shares;
+        }
+        // Remove cash that was added from the sell
+        if (data.cash && data.cash[h.portfolio]) {
+            data.cash[h.portfolio] = Math.max(0, data.cash[h.portfolio] - h.totalAmount);
+        }
+    } else {
+        // Undo DCA/buy: subtract shares and cost basis
+        (h.allocations || []).forEach(a => {
+            if (pd.holdings[a.ticker]) {
+                pd.holdings[a.ticker].shares = Math.max(0, pd.holdings[a.ticker].shares - a.shares);
+                pd.holdings[a.ticker].costBasis = Math.max(0, pd.holdings[a.ticker].costBasis - a.amount);
+                if (pd.holdings[a.ticker].shares < 0.0001) { pd.holdings[a.ticker].shares = 0; pd.holdings[a.ticker].costBasis = 0; }
+            }
+        });
+    }
+    data.history.splice(idx, 1);
+    saveData(data);
+    renderAll();
+}
+function undoDividend(ticker, dateStr) {
+    if (!confirm('Undo this dividend?')) return;
+    const data = loadData();
+    const idx = data.dividendHistory.findIndex(d => d.portfolio === currentPortfolio && d.ticker === ticker && d.date === dateStr);
+    if (idx === -1) { alert('Dividend not found'); return; }
+    const d = data.dividendHistory[idx];
+    const pd = data.portfolios[currentPortfolio];
+    if (pd && pd.holdings[d.ticker]) {
+        const price = d.price || (d.amount && d.shares ? d.amount / d.shares : 0);
+        const shares = d.shares || (price > 0 ? d.amount / price : 0);
+        pd.holdings[d.ticker].shares = Math.max(0, pd.holdings[d.ticker].shares - shares);
+        pd.holdings[d.ticker].costBasis = Math.max(0, pd.holdings[d.ticker].costBasis - d.amount);
+        if (pd.holdings[d.ticker].shares < 0.0001) { pd.holdings[d.ticker].shares = 0; pd.holdings[d.ticker].costBasis = 0; }
+    }
+    data.dividendHistory.splice(idx, 1);
+    saveData(data);
+    renderAll();
+}
 function renderHistory() {
     const data = loadData();
     const body = document.getElementById('historyBody');
@@ -1994,24 +2148,29 @@ function renderHistory() {
     data.history.filter(h => h.portfolio === currentPortfolio).forEach(h => {
         const dateStr = new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
         if (h.type === 'sell') {
-            entries.push({ date: new Date(h.date), dateStr, detail: 'Sold ' + h.ticker + ' (' + h.shares.toFixed(4) + ' @ ' + fmt(h.price) + ')', amount: fmt(h.totalAmount), type: 'sell' });
+            entries.push({ id: h.id, date: new Date(h.date), dateStr, detail: 'Sold ' + h.ticker + ' (' + h.shares.toFixed(4) + ' @ ' + fmt(h.price) + ')', amount: fmt(h.totalAmount), type: 'sell', canUndo: true });
         } else {
             const detail = h.allocations ? h.allocations.map(a => a.ticker + ' ' + fmt(a.amount)).join(', ') : 'DCA';
-            entries.push({ date: new Date(h.date), dateStr, detail, amount: fmt(h.totalAmount), type: 'dca' });
+            entries.push({ id: h.id, date: new Date(h.date), dateStr, detail, amount: fmt(h.totalAmount), type: 'dca', canUndo: !!h.allocations });
         }
     });
     data.dividendHistory.filter(d => d.portfolio === currentPortfolio).forEach(d => {
-        entries.push({ date: new Date(d.date), dateStr: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), detail: d.ticker + ' dividend', amount: fmt(d.amount), type: 'div' });
+        entries.push({ divTicker: d.ticker, divDate: d.date, date: new Date(d.date), dateStr: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), detail: d.ticker + ' dividend', amount: fmt(d.amount), type: 'div', canUndo: true });
     });
     entries.sort((a, b) => b.date - a.date);
     if (entries.length === 0) { body.innerHTML = '<div style="font-size:0.7rem; color:var(--text-dim); padding:0.5rem 0; font-weight:500;">No transactions yet.</div>'; return; }
-    body.innerHTML = entries.map(e => `
-        <div class="history-item">
+    body.innerHTML = entries.map(e => {
+        let undoBtn = '';
+        if (e.canUndo) {
+            if (e.type === 'div') undoBtn = `<span class="history-undo" onclick="undoDividend('${e.divTicker}','${e.divDate}')">Undo</span>`;
+            else undoBtn = `<span class="history-undo" onclick="undoTransaction('${e.id}')">Undo</span>`;
+        }
+        return `<div class="history-item">
             <div><span class="history-date">${e.dateStr}</span> <span class="history-type ${e.type}">${e.type === 'dca' ? 'DCA' : e.type === 'sell' ? 'SELL' : 'DIV'}</span></div>
             <div class="history-detail">${e.detail}</div>
-            <div class="history-amount">${e.amount}</div>
-        </div>
-    `).join('');
+            <div style="display:flex; align-items:center;"><span class="history-amount">${e.amount}</span>${undoBtn}</div>
+        </div>`;
+    }).join('');
 }
 
 // ====== RETINA CANVAS HELPER ======
