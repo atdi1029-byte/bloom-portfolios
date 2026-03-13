@@ -2513,6 +2513,8 @@ function buyPill(el) {
     if (!data.history) data.history = [];
     data.history.push({ id: 'buy_' + Date.now() + '_' + ticker, date: new Date().toISOString(), portfolio: pkey, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
     saveData(data);
+    // Auto-dismiss buy opportunity card for this ticker
+    if (dismissedOpps && !dismissedOpps.has(ticker)) { dismissedOpps.add(ticker); saveDismissedOpps(); }
     el.classList.add('bought');
     el.textContent = '\u2713 ' + ticker;
     renderAll();
@@ -2547,7 +2549,10 @@ function confirmSplitter() {
         if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0 };
         pd.holdings[ticker].shares += shares;
         pd.holdings[ticker].costBasis += amount;
+        // Auto-dismiss buy opportunity card for this ticker
+        if (dismissedOpps && !dismissedOpps.has(ticker)) dismissedOpps.add(ticker);
     });
+    saveDismissedOpps();
     // Add history entries per portfolio
     pendingSplitter.forEach(r => {
         if (r.capped || !r.allocations.length) return;
