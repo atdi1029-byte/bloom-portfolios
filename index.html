@@ -818,6 +818,7 @@
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
+            <button class="btn btn-green" onclick="applyRobinhoodFix()" style="font-size:0.55rem;">Fix Shares</button>
             <button class="btn" onclick="openReconcile()" style="font-size:0.55rem;">Reconcile</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
             <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
@@ -1926,6 +1927,62 @@ function saveHoldings() {
     saveData(data);
     closeEditModal();
     renderAll();
+}
+
+// ====== ONE-TIME FIX: SET SHARES TO MATCH ROBINHOOD (Mar 13 2026) ======
+function applyRobinhoodFix() {
+    if (!confirm('This will set all share counts to match your Robinhood account (Mar 13 2026). Cost basis stays the same. Continue?')) return;
+    const RH = {
+        JPST: 1.178885, SPSB: 1.82, DGRO: 0.700226, SCHD: 1.46,
+        SGOV: 0.408699, VOO: 0.067275, VTIP: 0.770503, GLD: 0.056596,
+        VTI: 0.07495, SCHG: 0.805239, VXUS: 0.265567, AVUV: 0.198783,
+        GDX: 0.155384, SMH: 0.029484, VO: 0.062782, IBIT: 0.156956,
+        JPM: 0.028038, AMZN: 0.03685, META: 0.01051, UNH: 0.00442,
+        MSFT: 0.00308
+    };
+    const data = loadData();
+    // For each ticker in Robinhood, scale across all portfolios proportionally
+    const allTickers = new Set();
+    for (const pDef of Object.values(PORTFOLIOS)) pDef.order.forEach(t => allTickers.add(t));
+    allTickers.forEach(ticker => {
+        const rhShares = RH[ticker] || 0;
+        let bloomTotal = 0;
+        const portHoldings = [];
+        for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+            if (!pDef.order.includes(ticker)) continue;
+            const pd = data.portfolios[pKey];
+            if (!pd || !pd.holdings || !pd.holdings[ticker]) continue;
+            const h = pd.holdings[ticker];
+            bloomTotal += h.shares;
+            portHoldings.push({ key: pKey, holdings: h });
+        }
+        if (bloomTotal === 0 && rhShares === 0) return;
+        if (bloomTotal === 0 && rhShares > 0) {
+            // Put all shares in first portfolio that has this ticker
+            for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+                if (pDef.order.includes(ticker)) {
+                    if (!data.portfolios[pKey]) data.portfolios[pKey] = { holdings: {} };
+                    if (!data.portfolios[pKey].holdings[ticker]) data.portfolios[pKey].holdings[ticker] = { shares: 0, costBasis: 0 };
+                    data.portfolios[pKey].holdings[ticker].shares = rhShares;
+                    break;
+                }
+            }
+            return;
+        }
+        if (rhShares === 0) {
+            // Zero out all portfolios for this ticker
+            portHoldings.forEach(ph => { ph.holdings.shares = 0; ph.holdings.costBasis = 0; });
+            return;
+        }
+        const ratio = rhShares / bloomTotal;
+        portHoldings.forEach(ph => {
+            ph.holdings.shares = ph.holdings.shares * ratio;
+            if (ph.holdings.shares < 0.0001) { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }
+        });
+    });
+    saveData(data);
+    renderAll();
+    alert('Done! All shares now match Robinhood.');
 }
 
 // ====== RECONCILE (FIX SHARES TO MATCH ROBINHOOD) ======
