@@ -1154,10 +1154,43 @@ function saveData(data) {
 }
 
 // ====== CLOUD SYNC ======
+function jsonpFetch(url, cb) {
+    const cbName = '_bloomCb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const script = document.createElement('script');
+    let done = false;
+    window[cbName] = function(resp) { done = true; delete window[cbName]; script.remove(); cb(null, resp); };
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
+    script.onerror = function() { if (!done) { delete window[cbName]; script.remove(); cb('Failed'); } };
+    setTimeout(function() { if (!done) { delete window[cbName]; script.remove(); cb('Timeout'); } }, 15000);
+    document.head.appendChild(script);
+}
+
+// JSONP chunked GET push — works even with AdBlock Plus
+var CHUNK_SIZE = 3000;
+function pushToCloudChunked(jsonStr, onDone) {
+    if (!jsonStr || jsonStr === '{}') { if (onDone) onDone(); return; }
+    var chunks = [];
+    for (var i = 0; i < jsonStr.length; i += CHUNK_SIZE) chunks.push(jsonStr.substring(i, i + CHUNK_SIZE));
+    var completed = 0, failed = false;
+    function onChunkDone(err) {
+        if (failed) return;
+        if (err) { failed = true; if (onDone) onDone(err); return; }
+        completed++;
+        if (completed === chunks.length) {
+            jsonpFetch(API_BASE + '?action=dca_save_done&n=' + chunks.length, function(err2) { if (onDone) onDone(err2); });
+        }
+    }
+    for (var j = 0; j < chunks.length; j++) {
+        (function(idx) {
+            var url = API_BASE + '?action=dca_save_chunk&i=' + idx + '&cd=' + encodeURIComponent(chunks[idx]);
+            jsonpFetch(url, function(err) { onChunkDone(err); });
+        })(j);
+    }
+}
+
 function syncToCloud(data) {
     if (!syncReady) return;
     try {
-        // Always include splitter settings alongside portfolios
         const essential = {
             portfolios: data.portfolios,
             cash: data.cash || {},
@@ -1173,34 +1206,22 @@ function syncToCloud(data) {
         const json = JSON.stringify(essential);
         const encoded = encodeURIComponent(json);
         if (encoded.length < 7000) {
-            fireGet(API_BASE + '?action=save_dca_data&data=' + encoded);
+            jsonpFetch(API_BASE + '?action=save_dca_data&data=' + encoded, function() {});
         } else {
-            // Too big — try keeping history without allocations detail (saves ~60% of history size)
-            const trimmedHistory = (data.history || []).map(h => ({ id: h.id, date: h.date, portfolio: h.portfolio, totalAmount: h.totalAmount, type: h.type, ticker: h.ticker }));
-            const trimmedDivs = (data.dividendHistory || []).map(d => ({ date: d.date, portfolio: d.portfolio, amount: d.amount, ticker: d.ticker }));
-            const medium = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, history: trimmedHistory, dividendHistory: trimmedDivs, lastModified: data.lastModified || Date.now(), seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
-            const mediumEncoded = encodeURIComponent(JSON.stringify(medium));
-            if (mediumEncoded.length < 7000) {
-                fireGet(API_BASE + '?action=save_dca_data&data=' + mediumEncoded);
-            } else {
-                // Still too big — drop history entirely
-                const slim = { portfolios: data.portfolios, cash: data.cash || {}, splitterRatios: data.splitterRatios, splitterTotal: data.splitterTotal, lastModified: data.lastModified || Date.now(), seenBuyOpps: [...seenBuyOpps], seenSellOpps: [...seenSellOpps], dismissedOpps: [...dismissedOpps] };
-                fireGet(API_BASE + '?action=save_dca_data&data=' + encodeURIComponent(JSON.stringify(slim)));
-            }
+            // Use chunked save for large payloads — sends full data including history
+            pushToCloudChunked(json, function() {});
         }
     } catch (e) { console.error('Cloud sync error:', e); }
 }
 
-async function loadFromCloud() {
-    try {
-        const resp = await fetch(API_BASE + '?action=load_dca_data');
-        if (!resp.ok) return null;
-        const result = await resp.json();
+function loadFromCloud(cb) {
+    jsonpFetch(API_BASE + '?action=load_dca_data', function(err, result) {
+        if (err || !result) { cb(null); return; }
         if (result.status === 'ok' && result.data) {
-            return typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-        }
-    } catch (e) { console.error('Cloud load error:', e); }
-    return null;
+            var parsed = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+            cb(parsed);
+        } else { cb(null); }
+    });
 }
 
 function createDefaultData() {
@@ -1261,7 +1282,6 @@ async function refreshPrices() {
     renderAll();
 }
 
-function fireGet(url) { const img = new Image(); img.src = url; }
 
 // ====== GETTERS ======
 function getPortfolioDef() { return PORTFOLIOS[currentPortfolio]; }
@@ -2366,6 +2386,9 @@ function drawGrowthBase(ctx) {
         const labelStr = labelVal >= 1000 ? '$' + (labelVal / 1000).toFixed(1) + 'k' : '$' + Math.round(labelVal);
         ctx.fillText(labelStr, pad.left - 4, yy + 3);
     }
+    // Clip to chart area so old peaks above Y-axis max are clipped
+    ctx.save();
+    ctx.beginPath(); ctx.rect(pad.left, pad.top, w - pad.left - pad.right, h - pad.top - pad.bottom); ctx.clip();
     // Cost basis line
     ctx.setLineDash([4, 3]); ctx.strokeStyle = '#c0b0b0'; ctx.lineWidth = 1.5;
     ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.invested)) : ctx.lineTo(xFn(t.date), yFn(t.invested)); }); ctx.stroke(); ctx.setLineDash([]);
@@ -2376,6 +2399,7 @@ function drawGrowthBase(ctx) {
     ctx.globalAlpha = 0.12; ctx.fillStyle = '#e88b93';
     ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); });
     ctx.lineTo(xFn(timeline[timeline.length - 1].date), yFn(0)); ctx.lineTo(xFn(timeline[0].date), yFn(0)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.restore();
     // Dates
     ctx.fillStyle = '#9a8e8e'; ctx.font = '600 8px Quicksand'; ctx.textAlign = 'center';
     ctx.fillText(timeline[0].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), xFn(timeline[0].date), h - 4);
@@ -2533,7 +2557,9 @@ function renderGrowthChart() {
             return;
         }
         if (emptyEl) emptyEl.style.display = 'none';
-        const maxVal = Math.max(...timeline.map(t => Math.max(t.total, t.invested)));
+        // Scale Y-axis to current values — old sold-off peaks shouldn't dominate
+        const lastPt = timeline[timeline.length - 1];
+        const maxVal = Math.max(lastPt.total, lastPt.invested, 1) * 1.2;
         const minDate = timeline[0].date.getTime(), maxDate = timeline[timeline.length - 1].date.getTime(), dateRange = maxDate - minDate || 1;
         const plotW = w - pad.left - pad.right, plotH = h - pad.top - pad.bottom;
         // Store for scrubber interaction
@@ -2928,62 +2954,40 @@ function switchPortfolio() {
 }
 
 // ====== INIT ======
-document.addEventListener('DOMContentLoaded', async () => {
-    applyTheme(currentPortfolio);
-    try {
-        const cloud = await loadFromCloud();
-        if (cloud && cloud.portfolios) {
-            const local = loadData();
-            const localTs = local.lastModified || 0;
-            const cloudTs = cloud.lastModified || 0;
-            // Use cloud data if it's newer OR if no local timestamp (legacy data)
-            if (cloudTs >= localTs || !localTs) {
-                const restored = Object.assign(createDefaultData(), cloud);
-                // Preserve local history/dividends if cloud doesn't have them (stripped during sync)
-                if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
-                    restored.history = local.history;
-                }
-                if ((!restored.dividendHistory || restored.dividendHistory.length === 0) && local.dividendHistory && local.dividendHistory.length > 0) {
-                    restored.dividendHistory = local.dividendHistory;
-                }
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
-            }
-            // Always merge seen/dismissed from cloud (union — never loses local or remote)
-            if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
-            if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
-            if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
+function mergeCloudData(cloud, isStartup) {
+    if (!cloud || !cloud.portfolios) return;
+    const local = loadData();
+    const localTs = local.lastModified || 0;
+    const cloudTs = cloud.lastModified || 0;
+    if (isStartup ? (cloudTs >= localTs || !localTs) : (cloudTs > localTs)) {
+        const restored = Object.assign(createDefaultData(), cloud);
+        if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
+            restored.history = local.history;
         }
-    } catch (e) { console.error('Cloud sync error:', e); }
-    syncReady = true;
-    refreshPrices();
+        if ((!restored.dividendHistory || restored.dividendHistory.length === 0) && local.dividendHistory && local.dividendHistory.length > 0) {
+            restored.dividendHistory = local.dividendHistory;
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+        if (!isStartup) renderAll();
+    }
+    if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
+    if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
+    if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    applyTheme(currentPortfolio);
+    loadFromCloud(function(cloud) {
+        mergeCloudData(cloud, true);
+        syncReady = true;
+        refreshPrices();
+    });
 });
 
 // Auto-pull from cloud when app comes back to foreground
-document.addEventListener('visibilitychange', async () => {
+document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && syncReady) {
-        try {
-            const cloud = await loadFromCloud();
-            if (cloud && cloud.portfolios) {
-                const local = loadData();
-                const localTs = local.lastModified || 0;
-                const cloudTs = cloud.lastModified || 0;
-                if (cloudTs > localTs) {
-                    const restored = Object.assign(createDefaultData(), cloud);
-                    // Preserve local history/dividends if cloud doesn't have them
-                    if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
-                        restored.history = local.history;
-                    }
-                    if ((!restored.dividendHistory || restored.dividendHistory.length === 0) && local.dividendHistory && local.dividendHistory.length > 0) {
-                        restored.dividendHistory = local.dividendHistory;
-                    }
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
-                    renderAll();
-                }
-                if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
-                if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
-                if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
-            }
-        } catch (e) { console.error('Cloud resume sync error:', e); }
+        loadFromCloud(function(cloud) { mergeCloudData(cloud, false); });
     }
 });
 
