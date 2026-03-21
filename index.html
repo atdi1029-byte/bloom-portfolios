@@ -1026,6 +1026,7 @@
     <div class="modal">
         <div class="modal-title" id="divModalTitle">Log Dividend</div>
         <div class="div-modal-info">Enter the dividend amount received. Shares will be calculated from current price.</div>
+        <div id="divRedirectInfo" style="display:none;background:rgba(255,255,255,0.07);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:0.92em;line-height:1.5"></div>
         <div class="modal-row">
             <label>Amount $</label>
             <input type="text" class="modal-input" id="divAmount" placeholder="45.00" inputmode="decimal">
@@ -1853,20 +1854,69 @@ function confirmDCA() {
 }
 
 // ====== DIVIDEND LOGGING ======
-function openDivModal(ticker) { divLogTicker = ticker; document.getElementById('divModalTitle').textContent = 'Log Dividend — ' + ticker; document.getElementById('divAmount').value = ''; document.getElementById('divModal').classList.add('show'); }
+function openDivModal(ticker) {
+    divLogTicker = ticker;
+    document.getElementById('divModalTitle').textContent = 'Log Dividend — ' + ticker;
+    document.getElementById('divAmount').value = '';
+    const infoEl = document.getElementById('divRedirectInfo');
+    if (currentPortfolio === 'cushion' && !['SCHD', 'VOO'].includes(ticker)) {
+        const pd = loadData().portfolios.cushion;
+        const pDef = PORTFOLIOS.cushion;
+        let totalVal = 0;
+        Object.keys(pDef.targets).forEach(t => {
+            const h = pd.holdings[t] || { shares: 0 };
+            totalVal += h.shares * getPrice(t);
+        });
+        const schdPct = totalVal > 0 ? ((pd.holdings.SCHD || { shares: 0 }).shares * getPrice('SCHD') / totalVal) * 100 : 0;
+        const vooPct = totalVal > 0 ? ((pd.holdings.VOO || { shares: 0 }).shares * getPrice('VOO') / totalVal) * 100 : 0;
+        const schdGap = pDef.targets.SCHD.pct - schdPct;
+        const vooGap = pDef.targets.VOO.pct - vooPct;
+        const pick = schdGap >= vooGap ? 'SCHD' : 'VOO';
+        const other = pick === 'SCHD' ? 'VOO' : 'SCHD';
+        const pickGap = pick === 'SCHD' ? schdGap : vooGap;
+        const otherGap = pick === 'SCHD' ? vooGap : schdGap;
+        infoEl.innerHTML = '→ Reinvesting into <strong>' + pick + '</strong><br>' +
+            pick + ': ' + pickGap.toFixed(1) + '% under target · ' +
+            other + ': ' + otherGap.toFixed(1) + '% under target';
+        infoEl.style.display = 'block';
+    } else {
+        infoEl.style.display = 'none';
+    }
+    document.getElementById('divModal').classList.add('show');
+}
 function closeDivModal() { document.getElementById('divModal').classList.remove('show'); divLogTicker = ''; }
+function getDividendTarget(sourceTicker) {
+    // 4-Year Cushion: bond/short-term dividends go to whichever of SCHD/VOO is more underweight
+    if (currentPortfolio === 'cushion' && !['SCHD', 'VOO'].includes(sourceTicker)) {
+        const pd = loadData().portfolios.cushion;
+        const pDef = PORTFOLIOS.cushion;
+        let totalVal = 0;
+        Object.keys(pDef.targets).forEach(t => {
+            const h = pd.holdings[t] || { shares: 0 };
+            totalVal += h.shares * getPrice(t);
+        });
+        if (totalVal <= 0) return 'SCHD';
+        const schdPct = ((pd.holdings.SCHD || { shares: 0 }).shares * getPrice('SCHD') / totalVal) * 100;
+        const vooPct = ((pd.holdings.VOO || { shares: 0 }).shares * getPrice('VOO') / totalVal) * 100;
+        const schdGap = pDef.targets.SCHD.pct - schdPct;
+        const vooGap = pDef.targets.VOO.pct - vooPct;
+        return schdGap >= vooGap ? 'SCHD' : 'VOO';
+    }
+    return sourceTicker;
+}
 async function confirmDividend() {
     const amount = parseFloat(document.getElementById('divAmount').value.replace(/,/g, ''));
     if (!amount || amount <= 0 || !divLogTicker) return;
     await refreshPrices();
-    const price = getPrice(divLogTicker);
+    const buyTicker = getDividendTarget(divLogTicker);
+    const price = getPrice(buyTicker);
     const shares = price > 0 ? amount / price : 0;
     const data = loadData();
     const pd = data.portfolios[currentPortfolio];
-    if (!pd.holdings[divLogTicker]) pd.holdings[divLogTicker] = { shares: 0, costBasis: 0 };
-    pd.holdings[divLogTicker].shares += shares;
-    pd.holdings[divLogTicker].costBasis += amount;
-    data.dividendHistory.push({ id: 'div_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, ticker: divLogTicker, amount, shares, price });
+    if (!pd.holdings[buyTicker]) pd.holdings[buyTicker] = { shares: 0, costBasis: 0 };
+    pd.holdings[buyTicker].shares += shares;
+    pd.holdings[buyTicker].costBasis += amount;
+    data.dividendHistory.push({ id: 'div_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, ticker: divLogTicker, buyTicker, amount, shares, price });
     saveData(data);
     closeDivModal();
     renderAll();
@@ -2259,7 +2309,7 @@ function renderHistory() {
         }
     });
     data.dividendHistory.filter(d => d.portfolio === currentPortfolio).forEach(d => {
-        entries.push({ divTicker: d.ticker, divDate: d.date, date: new Date(d.date), dateStr: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), detail: d.ticker + ' dividend', amount: fmt(d.amount), type: 'div', canUndo: true });
+        entries.push({ divTicker: d.ticker, divDate: d.date, date: new Date(d.date), dateStr: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), detail: d.ticker + ' dividend' + (d.buyTicker && d.buyTicker !== d.ticker ? ' → ' + d.buyTicker : ''), amount: fmt(d.amount), type: 'div', canUndo: true });
     });
     entries.sort((a, b) => b.date - a.date);
     if (entries.length === 0) { body.innerHTML = '<div style="font-size:0.7rem; color:var(--text-dim); padding:0.5rem 0; font-weight:500;">No transactions yet.</div>'; return; }
