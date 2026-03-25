@@ -1280,9 +1280,38 @@ async function refreshPrices() {
             });
         }
     }
+    recordValueSnapshot();
     renderAll();
 }
 
+// ====== DAILY VALUE SNAPSHOTS ======
+function recordValueSnapshot() {
+    const data = loadData();
+    if (!data.valueSnapshots) data.valueSnapshots = [];
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // Skip if already recorded today
+    if (data.valueSnapshots.length > 0 && data.valueSnapshots[data.valueSnapshots.length - 1].date === today) return;
+    // Need at least one live price to record
+    if (Object.keys(livePrices).length === 0) return;
+    const snap = { date: today, portfolios: {} };
+    let anyHoldings = false;
+    for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+        const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
+        let value = 0, cost = 0;
+        pDef.order.forEach(t => {
+            const h = pd.holdings[t] || { shares: 0, costBasis: 0 };
+            value += h.shares * getPrice(t);
+            cost += h.costBasis || 0;
+        });
+        if (value > 0 || cost > 0) anyHoldings = true;
+        snap.portfolios[pKey] = { value: Math.round(value * 100) / 100, cost: Math.round(cost * 100) / 100 };
+    }
+    if (!anyHoldings) return;
+    data.valueSnapshots.push(snap);
+    // Keep max 365 days
+    if (data.valueSnapshots.length > 365) data.valueSnapshots = data.valueSnapshots.slice(-365);
+    saveData(data);
+}
 
 // ====== GETTERS ======
 function getPortfolioDef() { return PORTFOLIOS[currentPortfolio]; }
@@ -2445,15 +2474,22 @@ function drawGrowthBase(ctx) {
     // Value line
     ctx.strokeStyle = '#e88b93'; ctx.lineWidth = 2;
     ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); }); ctx.stroke();
+    // Dots at each data point
+    timeline.forEach(t => {
+        ctx.beginPath(); ctx.arc(xFn(t.date), yFn(t.total), 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#e88b93'; ctx.fill();
+    });
     // Fill
     ctx.globalAlpha = 0.12; ctx.fillStyle = '#e88b93';
     ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); });
     ctx.lineTo(xFn(timeline[timeline.length - 1].date), yFn(0)); ctx.lineTo(xFn(timeline[0].date), yFn(0)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
     ctx.restore();
-    // Dates
+    // Dates — show day when range is short, month+year when long
     ctx.fillStyle = '#9a8e8e'; ctx.font = '600 8px Quicksand'; ctx.textAlign = 'center';
-    ctx.fillText(timeline[0].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), xFn(timeline[0].date), h - 4);
-    ctx.fillText(timeline[timeline.length - 1].date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), xFn(timeline[timeline.length - 1].date), h - 4);
+    const dayRange = (timeline[timeline.length - 1].date - timeline[0].date) / 86400000;
+    const dateFmt = dayRange < 90 ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' };
+    ctx.fillText(timeline[0].date.toLocaleDateString('en-US', dateFmt), xFn(timeline[0].date), h - 4);
+    ctx.fillText(timeline[timeline.length - 1].date.toLocaleDateString('en-US', dateFmt), xFn(timeline[timeline.length - 1].date), h - 4);
 }
 
 function drawGrowthScrub(ctx, idx) {
@@ -2506,34 +2542,60 @@ function toggleGrowthMode() {
 function buildGrowthTimeline(portfolioFilter) {
     const data = loadData();
     const portfolios = portfolioFilter ? [portfolioFilter] : ['cushion', 'growth', 'ira', 'stocks'];
+
+    // Phase 1: Build cost-basis timeline from DCA history events
+    // At each DCA event, value ≈ cost basis (you just bought at market price)
     const events = [];
     portfolios.forEach(pKey => {
         (data.history || []).filter(h => h.portfolio === pKey).forEach(e => {
-            if (e.type === 'sell') {
-                events.push({ date: new Date(e.date), type: 'sell', portfolio: pKey, amount: e.totalAmount });
-            } else {
-                events.push({ date: new Date(e.date), type: 'dca', portfolio: pKey, amount: e.totalAmount });
-            }
+            events.push({ date: new Date(e.date), type: e.type === 'sell' ? 'sell' : 'dca', portfolio: pKey, amount: e.totalAmount });
         });
         (data.dividendHistory || []).filter(d => d.portfolio === pKey).forEach(e => {
             events.push({ date: new Date(e.date), type: 'div', portfolio: pKey, amount: e.amount });
         });
     });
     events.sort((a, b) => a.date - b.date);
-    const invested = {}, dividends = {};
-    portfolios.forEach(p => { invested[p] = 0; dividends[p] = 0; });
-    const timeline = [];
+
+    const invested = {};
+    portfolios.forEach(p => { invested[p] = 0; });
+    const historyPoints = new Map(); // dateStr -> {invested, total}
     events.forEach(e => {
         if (e.type === 'dca') invested[e.portfolio] += e.amount;
         else if (e.type === 'sell') invested[e.portfolio] -= e.amount;
-        else dividends[e.portfolio] += e.amount;
-        let totalI = 0, totalD = 0;
-        portfolios.forEach(p => { totalI += invested[p]; totalD += dividends[p]; });
-        timeline.push({ date: e.date, invested: Math.max(0, totalI), total: Math.max(0, totalI + totalD) });
+        let totalI = 0;
+        portfolios.forEach(p => { totalI += invested[p]; });
+        const costBasis = Math.max(0, totalI);
+        const dateStr = e.date.toISOString().slice(0, 10);
+        // At time of DCA, value ≈ cost basis
+        historyPoints.set(dateStr, { date: e.date, invested: costBasis, total: costBasis });
     });
-    // Add current value as final point
-    let currentVal = 0;
-    let actualCostBasis = 0; // from portfolio data (always correct)
+
+    // Phase 2: Overlay daily snapshots (these have REAL market values)
+    const snapshots = data.valueSnapshots || [];
+    const snapshotPoints = new Map();
+    snapshots.forEach(snap => {
+        let totalValue = 0, totalCost = 0;
+        portfolios.forEach(pKey => {
+            const ps = snap.portfolios[pKey];
+            if (ps) { totalValue += ps.value; totalCost += ps.cost; }
+        });
+        if (totalValue > 0 || totalCost > 0) {
+            snapshotPoints.set(snap.date, {
+                date: new Date(snap.date + 'T12:00:00'),
+                invested: totalCost, total: totalValue
+            });
+        }
+    });
+
+    // Merge: snapshots override history for same date
+    const merged = new Map(historyPoints);
+    snapshotPoints.forEach((val, key) => merged.set(key, val));
+
+    // Sort by date
+    const timeline = Array.from(merged.values()).sort((a, b) => a.date - b.date);
+
+    // Phase 3: Add current live value as final point
+    let currentVal = 0, actualCostBasis = 0;
     portfolios.forEach(pKey => {
         const pDef = PORTFOLIOS[pKey];
         const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
@@ -2543,25 +2605,10 @@ function buildGrowthTimeline(portfolioFilter) {
             actualCostBasis += h.costBasis;
         });
     });
-    // Use actual cost basis from holdings (history may be incomplete due to cloud sync trimming)
-    const totalInvested = actualCostBasis;
-    // If no history but holdings exist, synthesize a starting point from cost basis
-    if (timeline.length === 0 && currentVal > 0) {
-        let totalCost = 0;
-        portfolios.forEach(pKey => {
-            const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
-            const pDef = PORTFOLIOS[pKey];
-            if (pDef) pDef.order.forEach(t => { totalCost += (pd.holdings[t] || {}).costBasis || 0; });
-        });
-        if (totalCost > 0) {
-            // Create a synthetic start point 30 days ago at cost basis
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - 30);
-            timeline.push({ date: startDate, invested: totalCost, total: totalCost });
-            totalInvested = totalCost;
-        }
+
+    if (timeline.length > 0 || currentVal > 0) {
+        timeline.push({ date: new Date(), invested: actualCostBasis, total: currentVal });
     }
-    if (timeline.length > 0 || currentVal > 0) timeline.push({ date: new Date(), invested: totalInvested > 0 ? totalInvested : currentVal, total: currentVal });
     return timeline;
 }
 
