@@ -1706,7 +1706,7 @@ async function quickBuyCustom(ticker) {
 
 // ====== MAGIC FORMULA ======
 let mfData = null;
-let mfCollapsed = localStorage.getItem('bloom_mf_collapsed') === '1';
+let mfCollapsed = localStorage.getItem('bloom_mf_collapsed') !== '0'; // collapsed by default
 const MF_CACHE_KEY = 'bloom_magic_formula';
 const MF_CACHE_HOURS = 6;
 
