@@ -1744,19 +1744,12 @@ function renderMagicFormula() {
 
     if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
 
-    // Show section even if no data yet (scanning message)
-    section.classList.add('show');
-
+    // Only show if we have actual data
     if (!mfData || !mfData.stocks || mfData.stocks.length === 0) {
-        grid.innerHTML = '<div class="mf-scanning">' +
-            '<div class="pct">Scanning...</div>' +
-            '<div>The Magic Formula pipeline is building the universe.</div>' +
-            '<div style="margin-top:0.5rem;">Run <code>refreshMagicFormulaUniverse()</code> in Apps Script to start,</div>' +
-            '<div>then set a daily trigger for <code>refreshMagicFormulaBatch()</code>.</div>' +
-            '</div>';
-        toggle.style.display = 'none';
+        section.classList.remove('show');
         return;
     }
+    section.classList.add('show');
 
     toggle.style.display = '';
     toggle.textContent = mfCollapsed ? 'Show' : 'Hide';
