@@ -1163,6 +1163,9 @@
 const API_BASE = 'https://script.google.com/macros/s/AKfycbwVwBpJsq5kybfAuo8DpvODludwPehRWeT81bRe1PftdSuYCXv90FnewvIsZtCZIUv6Cg/exec';
 const STORAGE_KEY = 'dca_portfolio_v1';
 let syncReady = false;
+let _saveInFlight = false;
+let _savePending = false;
+let _syncDebounce = null;
 
 // ====== PORTFOLIO DEFINITIONS ======
 const PORTFOLIOS = {
@@ -1271,10 +1274,12 @@ function loadData() {
 function saveData(data) {
     data.lastModified = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    syncToCloud(data);
+    syncToCloud();
 }
 
 // ====== CLOUD SYNC ======
+function fireGet(url) { var img = new Image(); img.src = url; }
+
 function jsonpFetch(url, cb) {
     const cbName = '_bloomCb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const script = document.createElement('script');
@@ -1286,53 +1291,97 @@ function jsonpFetch(url, cb) {
     document.head.appendChild(script);
 }
 
-// JSONP chunked GET push — works even with AdBlock Plus
-var CHUNK_SIZE = 3000;
-function pushToCloudChunked(jsonStr, onDone) {
-    if (!jsonStr || jsonStr === '{}') { if (onDone) onDone(); return; }
-    var chunks = [];
-    for (var i = 0; i < jsonStr.length; i += CHUNK_SIZE) chunks.push(jsonStr.substring(i, i + CHUNK_SIZE));
-    var completed = 0, failed = false;
-    function onChunkDone(err) {
-        if (failed) return;
-        if (err) { failed = true; if (onDone) onDone(err); return; }
-        completed++;
-        if (completed === chunks.length) {
-            jsonpFetch(API_BASE + '?action=dca_save_done&n=' + chunks.length, function(err2) { if (onDone) onDone(err2); });
-        }
+// JSONP sequential chunked push with inflight guard
+var CHUNK_SIZE = 1800;
+function _doCloudSave(onDone) {
+    if (_saveInFlight) { _savePending = true; if (onDone) onDone(); return; }
+    var data = loadData();
+    if (!data || !data.portfolios || Object.keys(data.portfolios).length === 0) {
+        if (onDone) onDone(); return;
     }
-    for (var j = 0; j < chunks.length; j++) {
-        (function(idx) {
+    var essential = {
+        portfolios: data.portfolios,
+        cash: data.cash || {},
+        splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
+        splitterTotal: data.splitterTotal || '',
+        history: data.history || [],
+        dividendHistory: data.dividendHistory || [],
+        lastModified: data.lastModified || Date.now(),
+        seenBuyOpps: [...seenBuyOpps],
+        seenSellOpps: [...seenSellOpps],
+        dismissedOpps: [...dismissedOpps]
+    };
+    var json = JSON.stringify(essential);
+    var encoded = encodeURIComponent(json);
+    _saveInFlight = true;
+    if (encoded.length < 7000) {
+        jsonpFetch(API_BASE + '?action=save_dca_data&data=' + encoded, function() {
+            _saveInFlight = false;
+            if (_savePending) { _savePending = false; _doCloudSave(); }
+            if (onDone) onDone();
+        });
+    } else {
+        var chunks = [];
+        for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
+        var idx = 0;
+        function sendNext() {
+            if (idx >= chunks.length) {
+                jsonpFetch(API_BASE + '?action=dca_save_done&n=' + chunks.length, function() {
+                    _saveInFlight = false;
+                    if (_savePending) { _savePending = false; _doCloudSave(); }
+                    if (onDone) onDone();
+                });
+                return;
+            }
             var url = API_BASE + '?action=dca_save_chunk&i=' + idx + '&cd=' + encodeURIComponent(chunks[idx]);
-            jsonpFetch(url, function(err) { onChunkDone(err); });
-        })(j);
+            jsonpFetch(url, function(err) {
+                if (err) { _saveInFlight = false; if (onDone) onDone(err); return; }
+                idx++;
+                sendNext();
+            });
+        }
+        sendNext();
     }
 }
 
-function syncToCloud(data) {
+function syncToCloud() {
     if (!syncReady) return;
-    try {
-        const essential = {
-            portfolios: data.portfolios,
-            cash: data.cash || {},
-            splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
-            splitterTotal: data.splitterTotal || '',
-            history: data.history || [],
-            dividendHistory: data.dividendHistory || [],
-            lastModified: data.lastModified || Date.now(),
-            seenBuyOpps: [...seenBuyOpps],
-            seenSellOpps: [...seenSellOpps],
-            dismissedOpps: [...dismissedOpps]
-        };
-        const json = JSON.stringify(essential);
-        const encoded = encodeURIComponent(json);
-        if (encoded.length < 7000) {
-            jsonpFetch(API_BASE + '?action=save_dca_data&data=' + encoded, function() {});
-        } else {
-            // Use chunked save for large payloads — sends full data including history
-            pushToCloudChunked(json, function() {});
-        }
-    } catch (e) { console.error('Cloud sync error:', e); }
+    clearTimeout(_syncDebounce);
+    _syncDebounce = setTimeout(function() {
+        mergeFromCloud(false, function() { _doCloudSave(); });
+    }, 1500);
+}
+
+function mergeFromCloud(showFeedback, onComplete) {
+    loadFromCloud(function(cloud) {
+        if (cloud) mergeCloudData(cloud, false);
+        if (showFeedback) renderAll();
+        if (onComplete) onComplete();
+    });
+}
+
+function beaconSave() {
+    var data = loadData();
+    if (!data || !data.portfolios || Object.keys(data.portfolios).length === 0) return;
+    var essential = {
+        portfolios: data.portfolios,
+        cash: data.cash || {},
+        splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
+        splitterTotal: data.splitterTotal || '',
+        history: data.history || [],
+        dividendHistory: data.dividendHistory || [],
+        lastModified: data.lastModified || Date.now(),
+        seenBuyOpps: [...seenBuyOpps],
+        seenSellOpps: [...seenSellOpps],
+        dismissedOpps: [...dismissedOpps]
+    };
+    var json = JSON.stringify(essential);
+    var chunks = [];
+    for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
+    for (var j = 0; j < chunks.length; j++) {
+        fireGet(API_BASE + '?action=dca_save_chunk&i=' + j + '&cd=' + encodeURIComponent(chunks[j]));
+    }
+    fireGet(API_BASE + '?action=dca_save_done&n=' + chunks.length);
 }
 
 function loadFromCloud(cb) {
@@ -1561,7 +1610,7 @@ function acknowledgeBuyBanner() {
         if (valScore >= 0.60 && price > 0) seenBuyOpps.add(ticker);
     });
     saveSeenBuyOpps();
-    syncToCloud(loadData());
+    syncToCloud();
     document.getElementById('portfolioSelect').value = 'stocks';
     switchPortfolio();
 }
@@ -1582,7 +1631,7 @@ function acknowledgeSellBanner() {
         if ((pnlPct >= 50 && valScore < 0.40 && value > 100) || (currentPct >= targetPct * 2 && totalVal > 1000)) seenSellOpps.add(ticker);
     });
     saveSeenSellOpps();
-    syncToCloud(loadData());
+    syncToCloud();
     document.getElementById('portfolioSelect').value = 'stocks';
     switchPortfolio();
 }
@@ -1619,7 +1668,7 @@ function saveSeenSellOpps() { localStorage.setItem('bloom_seen_sell_opps', JSON.
 function dismissOpp(ticker) {
     dismissedOpps.add(ticker);
     saveDismissedOpps();
-    syncToCloud(loadData());
+    syncToCloud();
     renderBuyOpps();
     renderStockOppsBanner();
 }
@@ -3338,12 +3387,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Auto-pull from cloud when app comes back to foreground
+// Dual visibilitychange: visible=pull, hidden=push
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && syncReady) {
-        loadFromCloud(function(cloud) { mergeCloudData(cloud, false); });
+    if (!syncReady) return;
+    if (document.visibilityState === 'visible') {
+        mergeFromCloud(true);
+    } else {
+        clearTimeout(_syncDebounce);
+        _doCloudSave();
     }
 });
+
+// Save on app kill (swipe away)
+document.addEventListener('pagehide', () => { beaconSave(); });
+
+// 30s periodic poll for cross-device changes
+setInterval(() => {
+    if (syncReady && document.visibilityState === 'visible') {
+        mergeFromCloud(false);
+    }
+}, 30000);
 
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }
 </script>
