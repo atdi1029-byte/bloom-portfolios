@@ -447,6 +447,116 @@
         .buy-opp-stats { font-size: 0.6rem; color: var(--text-dim); font-weight: 500; }
         .buy-opp-stats span { color: var(--leaf); font-weight: 700; }
 
+        /* ============ MAGIC FORMULA ============ */
+        .mf-section {
+            background: linear-gradient(135deg, rgba(212,168,67,0.08), rgba(232,200,112,0.12));
+            border: 1px solid rgba(212,168,67,0.35);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            display: none;
+        }
+        .mf-section.show { display: block; }
+        .mf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+        }
+        .mf-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 0.95rem;
+            color: var(--gold);
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .mf-subtitle {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+        .mf-toggle {
+            font-size: 0.65rem;
+            color: var(--gold);
+            font-weight: 600;
+            background: rgba(212,168,67,0.15);
+            border: 1px solid rgba(212,168,67,0.3);
+            border-radius: 8px;
+            padding: 3px 10px;
+            cursor: pointer;
+        }
+        .mf-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.75rem;
+        }
+        .mf-grid.collapsed { display: none; }
+        .mf-card {
+            background: white;
+            border: 2px solid rgba(212,168,67,0.3);
+            border-radius: 12px;
+            padding: 0.75rem;
+            position: relative;
+        }
+        .mf-card.owned { border-color: var(--leaf-light); }
+        .mf-rank {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            font-size: 0.55rem;
+            color: var(--gold);
+            font-weight: 700;
+            background: rgba(212,168,67,0.12);
+            border-radius: 6px;
+            padding: 1px 6px;
+        }
+        .mf-ticker {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--gold);
+            font-family: 'Playfair Display', serif;
+        }
+        .mf-name {
+            font-size: 0.5rem;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+        }
+        .mf-metrics {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            font-weight: 500;
+            margin: 4px 0;
+            line-height: 1.5;
+        }
+        .mf-metrics span { color: var(--gold); font-weight: 700; }
+        .mf-owned-badge {
+            font-size: 0.45rem;
+            background: var(--leaf-light);
+            color: var(--leaf-dim);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-weight: 700;
+            display: inline-block;
+            margin-top: 2px;
+        }
+        .mf-scanning {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+        }
+        .mf-scanning .pct {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gold);
+            font-family: 'Playfair Display', serif;
+        }
+
         /* ============ SMART DCA SECTION ============ */
         .dca-section {
             background: var(--dca-bg, linear-gradient(135deg, rgba(34,80,54,0.45), rgba(240,253,244,0.75)));
@@ -856,6 +966,16 @@
     <div class="buy-opps" id="buyOpps">
         <div class="buy-opps-title">Buy Opportunities</div>
         <div class="buy-opps-grid" id="buyOppsGrid"></div>
+    </div>
+
+    <!-- MAGIC FORMULA -->
+    <div class="mf-section" id="mfSection">
+        <div class="mf-header" onclick="toggleMF()">
+            <div class="mf-title">Magic Formula Top 30</div>
+            <div class="mf-toggle" id="mfToggle">Hide</div>
+        </div>
+        <div class="mf-subtitle" id="mfSubtitle">Greenblatt's value screen — cheapest quality businesses</div>
+        <div class="mf-grid" id="mfGrid"></div>
     </div>
 
     <!-- FUNDED BANNER -->
@@ -1473,6 +1593,7 @@ function renderAll() {
     renderStockOppsBanner();
     renderSellBanner();
     renderBuyOpps();
+    renderMagicFormula();
     renderProgress();
     renderStats();
     renderETFGrid();
@@ -1581,6 +1702,148 @@ async function quickBuyCustom(ticker) {
     if (!amount) return;
     const val = parseFloat(amount.replace(/,/g, ''));
     if (val > 0) await quickBuy(ticker, val);
+}
+
+// ====== MAGIC FORMULA ======
+let mfData = null;
+let mfCollapsed = localStorage.getItem('bloom_mf_collapsed') === '1';
+const MF_CACHE_KEY = 'bloom_magic_formula';
+const MF_CACHE_HOURS = 6;
+
+function fetchMagicFormula() {
+    const cached = localStorage.getItem(MF_CACHE_KEY);
+    if (cached) {
+        try {
+            const parsed = JSON.parse(cached);
+            if (parsed.ts && Date.now() - parsed.ts < MF_CACHE_HOURS * 3600000) {
+                mfData = parsed.data;
+                renderMagicFormula();
+                return;
+            }
+        } catch(e) {}
+    }
+    jsonpFetch(API_BASE + '?action=magic_formula', (err, resp) => {
+        if (err || !resp || resp.status !== 'ok') return;
+        mfData = resp;
+        localStorage.setItem(MF_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: resp }));
+        renderMagicFormula();
+    });
+}
+
+function toggleMF() {
+    mfCollapsed = !mfCollapsed;
+    localStorage.setItem('bloom_mf_collapsed', mfCollapsed ? '1' : '0');
+    renderMagicFormula();
+}
+
+function renderMagicFormula() {
+    const section = document.getElementById('mfSection');
+    const grid = document.getElementById('mfGrid');
+    const toggle = document.getElementById('mfToggle');
+    const subtitle = document.getElementById('mfSubtitle');
+
+    if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
+
+    // Show section even if no data yet (scanning message)
+    section.classList.add('show');
+
+    if (!mfData || !mfData.stocks || mfData.stocks.length === 0) {
+        grid.innerHTML = '<div class="mf-scanning">' +
+            '<div class="pct">Scanning...</div>' +
+            '<div>The Magic Formula pipeline is building the universe.</div>' +
+            '<div style="margin-top:0.5rem;">Run <code>refreshMagicFormulaUniverse()</code> in Apps Script to start,</div>' +
+            '<div>then set a daily trigger for <code>refreshMagicFormulaBatch()</code>.</div>' +
+            '</div>';
+        toggle.style.display = 'none';
+        return;
+    }
+
+    toggle.style.display = '';
+    toggle.textContent = mfCollapsed ? 'Show' : 'Hide';
+
+    // Update subtitle with scan info
+    const updated = mfData.lastUpdated ? new Date(mfData.lastUpdated).toLocaleDateString() : 'unknown';
+    subtitle.textContent = 'Greenblatt\'s value screen \u2014 updated ' + updated + ' \u2014 ' + mfData.stocks.length + ' stocks ranked';
+
+    if (mfCollapsed) { grid.classList.add('collapsed'); return; }
+    grid.classList.remove('collapsed');
+
+    // Check which MF tickers we already own in stocks portfolio
+    const data = loadData();
+    const holdings = (data.portfolios.stocks && data.portfolios.stocks.holdings) || {};
+
+    grid.innerHTML = mfData.stocks.map(s => {
+        const owned = holdings[s.ticker] && holdings[s.ticker].shares > 0;
+        const mktCapB = (s.marketCap / 1e9).toFixed(1);
+        const ey = (s.earningsYield * 100).toFixed(1);
+        const rotc = (s.rotc * 100).toFixed(1);
+        return `<div class="mf-card${owned ? ' owned' : ''}">
+            <div class="mf-rank">#${s.rank}</div>
+            <div class="mf-ticker">${s.ticker}</div>
+            <div class="mf-name">${s.name}</div>
+            <div class="mf-metrics">
+                EY <span>${ey}%</span> &bull; ROTC <span>${rotc}%</span><br>
+                ${s.sector ? s.sector + ' &bull; ' : ''}$${mktCapB}B${s.pe > 0 ? ' &bull; PE ' + s.pe.toFixed(1) : ''}
+            </div>
+            ${owned ? '<div class="mf-owned-badge">OWNED</div>' : ''}
+            <div style="display:flex; gap:4px; margin-top:0.5rem;">
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="mfBuy('${s.ticker}', '${s.name.replace(/'/g, "\\'")}', 10)">$10</button>
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="mfBuy('${s.ticker}', '${s.name.replace(/'/g, "\\'")}', 50)">$50</button>
+                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="mfBuyCustom('${s.ticker}', '${s.name.replace(/'/g, "\\'")}')">$?</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// Buy a Magic Formula stock — fetch live price via quote endpoint, then add to stocks portfolio
+async function mfBuy(ticker, name, amount) {
+    // First get live price
+    const price = await getMFPrice(ticker);
+    if (!price || price <= 0) { alert('Could not get price for ' + ticker); return; }
+    const shares = amount / price;
+    const data = loadData();
+    const pd = data.portfolios.stocks;
+    if (!pd.holdings) pd.holdings = {};
+    if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0, isMagicFormula: true };
+    pd.holdings[ticker].shares += shares;
+    pd.holdings[ticker].costBasis += amount;
+    pd.holdings[ticker].isMagicFormula = true;
+    // Add to targets if not already there so it shows in ETF grid
+    if (!PORTFOLIOS.stocks.targets[ticker]) {
+        PORTFOLIOS.stocks.targets[ticker] = { pct: 0, purpose: 'Magic Formula — ' + name };
+        PORTFOLIOS.stocks.order.push(ticker);
+        if (!ETF_COLORS[ticker]) ETF_COLORS[ticker] = '#d4a843';
+    }
+    if (!data.cash) data.cash = {};
+    const cashAvail = data.cash.stocks || 0;
+    const fromCash = Math.min(amount, cashAvail);
+    if (fromCash > 0) data.cash.stocks = cashAvail - fromCash;
+    data.history.push({
+        id: 'mf_' + Date.now(),
+        date: new Date().toISOString(),
+        portfolio: 'stocks',
+        totalAmount: amount,
+        type: 'dca',
+        allocations: [{ ticker, amount, shares, price }]
+    });
+    saveData(data);
+    renderAll();
+}
+
+async function mfBuyCustom(ticker, name) {
+    const amount = prompt('Buy ' + ticker + ' (' + name + ') — Enter dollar amount:');
+    if (!amount) return;
+    const val = parseFloat(amount.replace(/,/g, ''));
+    if (val > 0) await mfBuy(ticker, name, val);
+}
+
+function getMFPrice(ticker) {
+    return new Promise(resolve => {
+        jsonpFetch(API_BASE + '?action=quote&ticker=' + ticker, (err, resp) => {
+            if (err || !resp || resp.status !== 'ok') { resolve(0); return; }
+            resolve(resp.price || 0);
+        });
+    });
 }
 
 // ====== PROGRESS BAR ======
@@ -3078,6 +3341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mergeCloudData(cloud, true);
         syncReady = true;
         refreshPrices();
+        fetchMagicFormula();
     });
 });
 
