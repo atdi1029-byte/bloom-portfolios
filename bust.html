@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>Clearing cache...</title></head>
+<body>
+<p>Clearing cache and service worker...</p>
+<script>
+(async () => {
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) await r.unregister();
+  }
+  const keys = await caches.keys();
+  for (const k of keys) await caches.delete(k);
+  // Clear app localStorage (cloud will restore on next load)
+  localStorage.removeItem('dca_portfolio_v1');
+  localStorage.removeItem('dca_prices_cache');
+  localStorage.removeItem('bloom_dismissed_opps');
+  localStorage.removeItem('bloom_seen_buy_opps');
+  localStorage.removeItem('bloom_seen_sell_opps');
+  window.location.replace('./');
+})();
+</script>
+</body>
+</html>

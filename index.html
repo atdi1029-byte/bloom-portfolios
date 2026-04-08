@@ -1306,6 +1306,7 @@ function _doCloudSave(onDone) {
         splitterTotal: data.splitterTotal || '',
         history: data.history || [],
         dividendHistory: data.dividendHistory || [],
+        valueSnapshots: data.valueSnapshots || [],
         lastModified: data.lastModified || Date.now(),
         seenBuyOpps: [...seenBuyOpps],
         seenSellOpps: [...seenSellOpps],
@@ -1370,6 +1371,7 @@ function beaconSave() {
         splitterTotal: data.splitterTotal || '',
         history: data.history || [],
         dividendHistory: data.dividendHistory || [],
+        valueSnapshots: data.valueSnapshots || [],
         lastModified: data.lastModified || Date.now(),
         seenBuyOpps: [...seenBuyOpps],
         seenSellOpps: [...seenSellOpps],
@@ -3369,6 +3371,15 @@ function mergeCloudData(cloud, isStartup) {
         if ((!restored.dividendHistory || restored.dividendHistory.length === 0) && local.dividendHistory && local.dividendHistory.length > 0) {
             restored.dividendHistory = local.dividendHistory;
         }
+        // Merge valueSnapshots: combine cloud + local, dedupe by date, keep latest 365
+        const localSnaps = local.valueSnapshots || [];
+        const cloudSnaps = restored.valueSnapshots || [];
+        const snapMap = new Map();
+        localSnaps.forEach(s => snapMap.set(s.date, s));
+        cloudSnaps.forEach(s => snapMap.set(s.date, s)); // cloud wins ties
+        restored.valueSnapshots = Array.from(snapMap.values())
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .slice(-365);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
         if (!isStartup) renderAll();
     }
