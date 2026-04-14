@@ -2368,6 +2368,52 @@ function saveHoldings() {
 }
 
 // ====== ONE-TIME FIX: SET SHARES TO MATCH ROBINHOOD (Apr 14 2026) ======
+function applyRobinhoodFix_auto() {
+    // Silent auto-apply version — runs once on next load
+    const RH_AUTO = {
+        JPST: 4.32, SPSB: 6.55, DGRO: 2.59, SCHD: 5.09,
+        SGOV: 1.30, VOO: 0.278079, VTIP: 2.72, GLD: 0.292509,
+        VTI: 0.220845, SCHG: 2.67, VXUS: 0.679315, AVUV: 0.475224,
+        GDX: 0.510193, SMH: 0.071544, VO: 0.162544, IBIT: 1.49,
+        JPM: 0.028038, AMZN: 0.03685, META: 0.010528, UNH: 0.046529,
+        MSFT: 0.050286, NFLX: 0.094327, AAPL: 0.043311, LLY: 0.002511,
+        PG: 0.092864
+    };
+    const data = loadData();
+    const allTickers = new Set();
+    for (const pDef of Object.values(PORTFOLIOS)) pDef.order.forEach(t => allTickers.add(t));
+    allTickers.forEach(ticker => {
+        const rhShares = RH_AUTO[ticker] || 0;
+        let bloomTotal = 0;
+        const portHoldings = [];
+        for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+            if (!pDef.order.includes(ticker)) continue;
+            const pd = data.portfolios[pKey];
+            if (!pd || !pd.holdings || !pd.holdings[ticker]) continue;
+            bloomTotal += pd.holdings[ticker].shares;
+            portHoldings.push({ key: pKey, holdings: pd.holdings[ticker] });
+        }
+        if (bloomTotal === 0 && rhShares === 0) return;
+        if (bloomTotal === 0 && rhShares > 0) {
+            for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
+                if (pDef.order.includes(ticker)) {
+                    if (!data.portfolios[pKey]) data.portfolios[pKey] = { holdings: {} };
+                    if (!data.portfolios[pKey].holdings[ticker]) data.portfolios[pKey].holdings[ticker] = { shares: 0, costBasis: 0 };
+                    data.portfolios[pKey].holdings[ticker].shares = rhShares;
+                    break;
+                }
+            }
+            return;
+        }
+        if (rhShares === 0) { portHoldings.forEach(ph => { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }); return; }
+        const ratio = rhShares / bloomTotal;
+        portHoldings.forEach(ph => {
+            ph.holdings.shares = ph.holdings.shares * ratio;
+            if (ph.holdings.shares < 0.0001) { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }
+        });
+    });
+    saveData(data, true);
+}
 function applyRobinhoodFix() {
     if (!confirm('This will set all share counts to match your Robinhood account (Apr 14 2026). Cost basis stays the same. Continue?')) return;
     const RH = {
@@ -3398,6 +3444,11 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
     loadFromCloud(function(cloud) {
         mergeCloudData(cloud, true);
+        // Auto-apply Apr 14 2026 Robinhood reconcile (once)
+        if (!localStorage.getItem('bloom_rh_fix_apr14')) {
+            applyRobinhoodFix_auto();
+            localStorage.setItem('bloom_rh_fix_apr14', '1');
+        }
         syncReady = true;
         refreshPrices();
         fetchMagicFormula();
