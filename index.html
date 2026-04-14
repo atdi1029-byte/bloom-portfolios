@@ -2367,16 +2367,17 @@ function saveHoldings() {
     renderAll();
 }
 
-// ====== ONE-TIME FIX: SET SHARES TO MATCH ROBINHOOD (Mar 13 2026) ======
+// ====== ONE-TIME FIX: SET SHARES TO MATCH ROBINHOOD (Apr 14 2026) ======
 function applyRobinhoodFix() {
-    if (!confirm('This will set all share counts to match your Robinhood account (Mar 13 2026). Cost basis stays the same. Continue?')) return;
+    if (!confirm('This will set all share counts to match your Robinhood account (Apr 14 2026). Cost basis stays the same. Continue?')) return;
     const RH = {
-        JPST: 1.178885, SPSB: 1.82, DGRO: 0.700226, SCHD: 1.46,
-        SGOV: 0.408699, VOO: 0.067275, VTIP: 0.770503, GLD: 0.056596,
-        VTI: 0.07495, SCHG: 0.805239, VXUS: 0.265567, AVUV: 0.198783,
-        GDX: 0.155384, SMH: 0.029484, VO: 0.062782, IBIT: 0.156956,
-        JPM: 0.028038, AMZN: 0.03685, META: 0.01051, UNH: 0.00442,
-        MSFT: 0.00308
+        JPST: 4.32, SPSB: 6.55, DGRO: 2.59, SCHD: 5.09,
+        SGOV: 1.30, VOO: 0.278079, VTIP: 2.72, GLD: 0.292509,
+        VTI: 0.220845, SCHG: 2.67, VXUS: 0.679315, AVUV: 0.475224,
+        GDX: 0.510193, SMH: 0.071544, VO: 0.162544, IBIT: 1.49,
+        JPM: 0.028038, AMZN: 0.03685, META: 0.010528, UNH: 0.046529,
+        MSFT: 0.050286, NFLX: 0.094327, AAPL: 0.043311, LLY: 0.002511,
+        PG: 0.092864
     };
     const data = loadData();
     // For each ticker in Robinhood, scale across all portfolios proportionally
