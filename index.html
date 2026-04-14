@@ -2412,6 +2412,8 @@ function applyRobinhoodFix_auto() {
             if (ph.holdings.shares < 0.0001) { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }
         });
     });
+    // Clear old snapshots so growth chart starts fresh with correct data
+    data.valueSnapshots = [];
     saveData(data, true);
 }
 function applyRobinhoodFix() {
@@ -3445,9 +3447,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFromCloud(function(cloud) {
         mergeCloudData(cloud, true);
         // Auto-apply Apr 14 2026 Robinhood reconcile (once)
-        if (!localStorage.getItem('bloom_rh_fix_apr14')) {
+        if (!localStorage.getItem('bloom_rh_fix_apr14_v2')) {
             applyRobinhoodFix_auto();
-            localStorage.setItem('bloom_rh_fix_apr14', '1');
+            localStorage.setItem('bloom_rh_fix_apr14_v2', '1');
         }
         syncReady = true;
         refreshPrices();
