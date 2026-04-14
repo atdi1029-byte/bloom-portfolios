@@ -1271,10 +1271,10 @@ function loadData() {
     } catch { return createDefaultData(); }
 }
 
-function saveData(data) {
+function saveData(data, immediate) {
     data.lastModified = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    syncToCloud();
+    syncToCloud(immediate);
 }
 
 // ====== CLOUD SYNC ======
@@ -1345,12 +1345,17 @@ function _doCloudSave(onDone) {
     }
 }
 
-function syncToCloud() {
+function syncToCloud(immediate) {
     if (!syncReady) return;
     clearTimeout(_syncDebounce);
-    _syncDebounce = setTimeout(function() {
-        mergeFromCloud(false, function() { _doCloudSave(); });
-    }, 1500);
+    if (immediate) {
+        // Buy actions: push immediately, no merge-before-save
+        _doCloudSave();
+    } else {
+        _syncDebounce = setTimeout(function() {
+            mergeFromCloud(false, function() { _doCloudSave(); });
+        }, 1500);
+    }
 }
 
 function mergeFromCloud(showFeedback, onComplete) {
@@ -1744,7 +1749,7 @@ async function quickBuy(ticker, amount) {
     const fromCash = Math.min(amount, cashAvail);
     if (fromCash > 0) data.cash[currentPortfolio] = cashAvail - fromCash;
     data.history.push({ id: 'buy_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
-    saveData(data);
+    saveData(data, true);
     renderAll();
 }
 
@@ -1870,7 +1875,7 @@ async function mfBuy(ticker, name, amount) {
         type: 'dca',
         allocations: [{ ticker, amount, shares, price }]
     });
-    saveData(data);
+    saveData(data, true);
     renderAll();
 }
 
@@ -2253,7 +2258,7 @@ async function confirmDividend() {
     pd.holdings[buyTicker].shares += shares;
     pd.holdings[buyTicker].costBasis += amount;
     data.dividendHistory.push({ id: 'div_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, ticker: divLogTicker, buyTicker, amount, shares, price });
-    saveData(data);
+    saveData(data, true);
     closeDivModal();
     renderAll();
 }
@@ -2300,7 +2305,7 @@ async function confirmSell() {
     data.history.push({ id: 'sell_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'sell', ticker: sellTicker, shares: sharesToSell, price, profit });
     if (!data.cash) data.cash = {};
     data.cash[currentPortfolio] = (data.cash[currentPortfolio] || 0) + amount;
-    saveData(data);
+    saveData(data, true);
     closeSellModal();
     renderAll();
 }
@@ -2357,7 +2362,7 @@ function saveHoldings() {
             costBasis: parseFloat(document.getElementById('edit_cost_' + ticker).value.replace(/,/g, '')) || 0
         };
     });
-    saveData(data);
+    saveData(data, true);
     closeEditModal();
     renderAll();
 }
@@ -2500,7 +2505,7 @@ function saveReconcile() {
             if (ph.holdings.shares < 0.0001) { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }
         });
     });
-    saveData(data);
+    saveData(data, true);
     closeReconcile();
     renderAll();
 }
@@ -2610,7 +2615,7 @@ function undoTransaction(historyId) {
         });
     }
     data.history.splice(idx, 1);
-    saveData(data);
+    saveData(data, true);
     renderAll();
 }
 function undoDividend(ticker, dateStr) {
@@ -2628,7 +2633,7 @@ function undoDividend(ticker, dateStr) {
         if (pd.holdings[d.ticker].shares < 0.0001) { pd.holdings[d.ticker].shares = 0; pd.holdings[d.ticker].costBasis = 0; }
     }
     data.dividendHistory.splice(idx, 1);
-    saveData(data);
+    saveData(data, true);
     renderAll();
 }
 function renderHistory() {
@@ -3193,7 +3198,7 @@ function buyPill(el) {
     pd.holdings[ticker].costBasis += amount;
     if (!data.history) data.history = [];
     data.history.push({ id: 'buy_' + Date.now() + '_' + ticker, date: new Date().toISOString(), portfolio: pkey, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
-    saveData(data);
+    saveData(data, true);
     // Auto-dismiss buy opportunity card for this ticker
     if (dismissedOpps && !dismissedOpps.has(ticker)) { dismissedOpps.add(ticker); saveDismissedOpps(); }
     el.classList.add('bought');
@@ -3246,7 +3251,7 @@ function confirmSplitter() {
         }
     });
     data.splitterTotal = '';
-    saveData(data);
+    saveData(data, true);
     pendingSplitter = null;
     document.getElementById('splitterResult').classList.remove('show');
     document.getElementById('splitterTotal').value = '';
