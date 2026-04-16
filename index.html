@@ -2595,9 +2595,17 @@ function renderAlerts() {
         if (gap > 2) underweight.push({ ticker, gap: gap.toFixed(1) });
     });
     underweight.sort((a, b) => b.gap - a.gap);
-    const reallocHtml = underweight.length > 0
-        ? '<span class="alert-realloc">Rebalance → <span style="color:var(--leaf);">' + underweight.slice(0, 3).map(u => `${u.ticker} (${u.gap}% under)`).join(', ') + '</span></span>'
-        : '';
+    function buildReallocHtml(sellAmt) {
+        if (underweight.length === 0 || !sellAmt || sellAmt <= 0) return '';
+        const top3 = underweight.slice(0, 3);
+        const totalGap = top3.reduce((s, u) => s + parseFloat(u.gap), 0);
+        const parts = top3.map(u => {
+            const share = parseFloat(u.gap) / totalGap;
+            const buyAmt = sellAmt * share;
+            return `${u.ticker} ${fmt(buyAmt)}`;
+        });
+        return '<span class="alert-realloc">Buy → <span style="color:var(--leaf);">' + parts.join(', ') + '</span></span>';
+    }
     // Find most recent buy date per ticker for tax warnings
     const data = loadData();
     const lastBuyDate = {};
@@ -2629,13 +2637,17 @@ function renderAlerts() {
         if (drift > 10 && totalVal > 1000) {
             if (currentPct >= targetPct * 2) {
                 const trimAmt = value - (totalVal * targetPct / 100);
-                alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Trim ${fmt(trimAmt)}</strong>${taxWarn}${reallocHtml}`);
+                const trimShares = trimAmt / price;
+                alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Sell ${fmt(trimAmt)}</strong> (${trimShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(trimAmt)}`);
             } else {
                 alerts.push(`${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)`);
             }
         }
         if (pnlPct >= 50 && calcValuationScore(ticker) < 0.30 && value > 100) {
-            alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — consider taking profits${taxWarn}${reallocHtml}`);
+            const targetVal = totalVal * targetPct / 100;
+            const sellAmt = value - targetVal;
+            const sellShares = sellAmt / price;
+            alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — <strong style="color:var(--red);">Sell ${fmt(sellAmt)}</strong> (${sellShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(sellAmt)}`);
         }
     });
     const section = document.getElementById('alertSection');
