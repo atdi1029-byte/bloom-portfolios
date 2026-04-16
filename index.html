@@ -2508,7 +2508,7 @@ function resetCostBasis() {
     for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
         const pd = data.portfolios[pKey];
         if (!pd || !pd.holdings) continue;
-        pDef.order.forEach(ticker => {
+        Object.keys(pd.holdings).forEach(ticker => {
             const h = pd.holdings[ticker];
             if (!h || h.shares <= 0) return;
             const price = getPrice(ticker);
