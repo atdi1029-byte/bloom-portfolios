@@ -2662,7 +2662,9 @@ function renderAlerts() {
             if (currentPct >= targetPct * 2) {
                 const trimAmt = value - (totalVal * targetPct / 100);
                 const trimShares = trimAmt / price;
+                if (trimAmt >= 1 && trimShares >= 0.01) {
                 alerts.push({ html: `<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Sell ${fmt(trimAmt)}</strong> (${trimShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(trimAmt)}`, sellTicker: ticker, sellAmt: trimAmt, sellShares: trimShares, sellPrice: price, buyAllocs: getBuyAllocs(trimAmt) });
+                }
             } else {
                 alerts.push({ html: `${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)` });
             }
@@ -2671,6 +2673,7 @@ function renderAlerts() {
             const targetVal = totalVal * targetPct / 100;
             const sellAmt = value - targetVal;
             const sellShares = sellAmt / price;
+            if (sellAmt < 1 || sellShares < 0.01) return;
             alerts.push({ html: `<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — <strong style="color:var(--red);">Sell ${fmt(sellAmt)}</strong> (${sellShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(sellAmt)}`, sellTicker: ticker, sellAmt: sellAmt, sellShares: sellShares, sellPrice: price, buyAllocs: getBuyAllocs(sellAmt) });
         }
     });
