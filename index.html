@@ -789,19 +789,6 @@
             font-size: 0.65rem;
             color: var(--gold);
         }
-        .drift-done-btn {
-            display: inline-block;
-            margin-top: 0.35rem;
-            padding: 3px 14px;
-            font-size: 0.6rem;
-            font-weight: 700;
-            font-family: 'Quicksand', sans-serif;
-            color: #fff;
-            background: var(--leaf);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
 
         /* ============ HISTORY LOG ============ */
         .history-header {
@@ -1087,7 +1074,10 @@
 
     <!-- REBALANCE ALERTS -->
     <div class="alert-section" id="alertSection">
-        <div class="alert-title">Drift Alerts</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <div class="alert-title" style="margin-bottom:0;">Drift Alerts</div>
+            <button class="btn btn-primary" id="driftDoneBtn" onclick="executeAllDriftAlerts()" style="display:none;">Rebalance All</button>
+        </div>
         <div id="alertList"></div>
     </div>
 
@@ -2687,48 +2677,50 @@ function renderAlerts() {
     window._driftAlerts = alerts;
     const section = document.getElementById('alertSection');
     const list = document.getElementById('alertList');
+    const doneBtn = document.getElementById('driftDoneBtn');
     if (alerts.length > 0) {
         section.style.display = 'block';
-        list.innerHTML = alerts.map((a, i) => {
-            const doneBtn = a.sellTicker
-                ? ` <button class="drift-done-btn" onclick="executeDriftRebalance(${i})">Done</button>`
-                : '';
-            return `<div class="alert-item">${a.html}${doneBtn}</div>`;
-        }).join('');
-    } else { section.style.display = 'none'; }
+        list.innerHTML = alerts.map(a => `<div class="alert-item">${a.html}</div>`).join('');
+        doneBtn.style.display = alerts.some(a => a.sellTicker) ? '' : 'none';
+    } else { section.style.display = 'none'; doneBtn.style.display = 'none'; }
 }
 
 // ====== DRIFT REBALANCE EXECUTE ======
-function executeDriftRebalance(idx) {
-    const alert = window._driftAlerts[idx];
-    if (!alert || !alert.sellTicker) return;
-    const msg = `Sell ${alert.sellShares.toFixed(2)} shares of ${alert.sellTicker} (${fmt(alert.sellAmt)})` +
-        (alert.buyAllocs.length > 0 ? `\nBuy: ${alert.buyAllocs.map(a => `${a.ticker} ${fmt(a.amount)} (${a.shares.toFixed(2)} shares)`).join(', ')}` : '') +
-        `\n\nExecute this rebalance?`;
+function executeAllDriftAlerts() {
+    const actionable = (window._driftAlerts || []).filter(a => a.sellTicker);
+    if (actionable.length === 0) return;
+    let msg = 'Execute all drift rebalances?\n\n';
+    actionable.forEach(a => {
+        msg += `SELL ${a.sellShares.toFixed(2)} ${a.sellTicker} (${fmt(a.sellAmt)})\n`;
+        a.buyAllocs.forEach(b => { msg += `  BUY ${b.ticker} ${fmt(b.amount)} (${b.shares.toFixed(2)} shares)\n`; });
+        msg += '\n';
+    });
     if (!confirm(msg)) return;
     const data = loadData();
     const pd = data.portfolios[currentPortfolio];
-    const h = pd.holdings[alert.sellTicker];
-    if (!h || h.shares < alert.sellShares) { alert('Not enough shares to sell'); return; }
-    // Sell
-    const avgCost = h.shares > 0 ? h.costBasis / h.shares : 0;
-    const profit = alert.sellAmt - alert.sellShares * avgCost;
-    h.shares -= alert.sellShares;
-    h.costBasis -= alert.sellShares * avgCost;
-    if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
-    data.history.push({ id: 'sell_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: alert.sellAmt, type: 'sell', ticker: alert.sellTicker, shares: alert.sellShares, price: alert.sellPrice, profit });
-    // Buy underweight ETFs
-    if (alert.buyAllocs.length > 0) {
-        const buyAllocations = [];
-        alert.buyAllocs.forEach(a => {
-            if (a.amount <= 0) return;
-            if (!pd.holdings[a.ticker]) pd.holdings[a.ticker] = { shares: 0, costBasis: 0 };
-            pd.holdings[a.ticker].shares += a.shares;
-            pd.holdings[a.ticker].costBasis += a.amount;
-            buyAllocations.push({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price });
-        });
-        data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: alert.sellAmt, type: 'dca', allocations: buyAllocations, note: 'Drift rebalance from ' + alert.sellTicker });
-    }
+    actionable.forEach(a => {
+        const h = pd.holdings[a.sellTicker];
+        if (!h || h.shares < a.sellShares) return;
+        // Sell
+        const avgCost = h.shares > 0 ? h.costBasis / h.shares : 0;
+        const profit = a.sellAmt - a.sellShares * avgCost;
+        h.shares -= a.sellShares;
+        h.costBasis -= a.sellShares * avgCost;
+        if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
+        data.history.push({ id: 'sell_' + Date.now() + '_' + a.sellTicker, date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: a.sellAmt, type: 'sell', ticker: a.sellTicker, shares: a.sellShares, price: a.sellPrice, profit });
+        // Buy underweight ETFs
+        if (a.buyAllocs.length > 0) {
+            const buyAllocations = [];
+            a.buyAllocs.forEach(b => {
+                if (b.amount <= 0) return;
+                if (!pd.holdings[b.ticker]) pd.holdings[b.ticker] = { shares: 0, costBasis: 0 };
+                pd.holdings[b.ticker].shares += b.shares;
+                pd.holdings[b.ticker].costBasis += b.amount;
+                buyAllocations.push({ ticker: b.ticker, amount: b.amount, shares: b.shares, price: b.price });
+            });
+            data.history.push({ id: 'dca_' + Date.now() + '_' + a.sellTicker, date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: a.sellAmt, type: 'dca', allocations: buyAllocations, note: 'Drift rebalance from ' + a.sellTicker });
+        }
+    });
     saveData(data, true);
     renderAll();
 }
