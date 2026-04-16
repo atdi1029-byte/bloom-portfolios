@@ -753,10 +753,10 @@
 
         /* ============ REBALANCE ALERTS ============ */
         .alert-section {
-            background: linear-gradient(135deg, rgba(232,139,147,0.05), rgba(232,139,147,0.10));
-            border: 1px solid var(--rose-light);
+            background: var(--card-bg);
+            border: 1px solid var(--border);
             border-radius: 16px;
-            padding: 1rem;
+            padding: 1rem 1.1rem;
             margin-bottom: 1.25rem;
             display: none;
         }
@@ -765,16 +765,30 @@
             font-size: 0.85rem;
             color: var(--red);
             font-weight: 700;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.6rem;
         }
         .alert-item {
+            background: rgba(232,139,147,0.06);
+            border: 1px solid rgba(232,139,147,0.15);
+            border-radius: 10px;
+            padding: 0.55rem 0.7rem;
+            margin-bottom: 0.45rem;
             font-size: 0.7rem;
-            padding: 4px 0;
             color: var(--text);
-            border-bottom: 1px solid var(--border-light);
             font-weight: 500;
+            line-height: 1.6;
         }
-        .alert-item:last-child { border: none; }
+        .alert-item:last-child { margin-bottom: 0; }
+        .alert-realloc {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+        .alert-tax {
+            font-size: 0.65rem;
+            color: var(--gold);
+        }
 
         /* ============ HISTORY LOG ============ */
         .history-header {
@@ -1058,6 +1072,12 @@
         </div>
     </div>
 
+    <!-- REBALANCE ALERTS -->
+    <div class="alert-section" id="alertSection">
+        <div class="alert-title">Drift Alerts</div>
+        <div id="alertList"></div>
+    </div>
+
     <!-- CHARTS -->
     <div class="charts-section">
         <div class="chart-card">
@@ -1082,12 +1102,6 @@
 
     <!-- ETF GRID -->
     <div class="etf-grid" id="etfGrid"></div>
-
-    <!-- REBALANCE ALERTS -->
-    <div class="alert-section" id="alertSection">
-        <div class="alert-title">Drift Alerts</div>
-        <div id="alertList"></div>
-    </div>
 
     <!-- HISTORY LOG -->
     <div class="card">
@@ -2582,7 +2596,7 @@ function renderAlerts() {
     });
     underweight.sort((a, b) => b.gap - a.gap);
     const reallocHtml = underweight.length > 0
-        ? ' → <span style="color:var(--leaf);">' + underweight.slice(0, 3).map(u => `${u.ticker} (${u.gap}% under)`).join(', ') + '</span>'
+        ? '<span class="alert-realloc">Rebalance → <span style="color:var(--leaf);">' + underweight.slice(0, 3).map(u => `${u.ticker} (${u.gap}% under)`).join(', ') + '</span></span>'
         : '';
     // Find most recent buy date per ticker for tax warnings
     const data = loadData();
@@ -2610,7 +2624,7 @@ function renderAlerts() {
             const ltDate = new Date(lastBuyDate[ticker]);
             ltDate.setFullYear(ltDate.getFullYear() + 1);
             const months = Math.ceil((ltDate - new Date()) / (1000 * 60 * 60 * 24 * 30));
-            taxWarn = ` <span style="color:var(--gold); font-size:0.75rem;">held &lt;1yr (long-term in ${months}mo)</span>`;
+            taxWarn = ` <span class="alert-tax">· held &lt;1yr (long-term in ${months}mo)</span>`;
         }
         if (drift > 10 && totalVal > 1000) {
             if (currentPct >= targetPct * 2) {
