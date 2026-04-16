@@ -950,7 +950,6 @@
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
-            <button class="btn btn-red" onclick="resetCostBasis()">Reset Cost Basis</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
             <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
         </div>
@@ -1132,6 +1131,7 @@
         <div id="editModalBody"></div>
         <div class="modal-actions">
             <button class="btn btn-red" onclick="closeEditModal()">Cancel</button>
+            <button class="btn" onclick="resetCostBasis(); closeEditModal();" style="font-size:0.6rem;">Reset Cost Basis</button>
             <button class="btn btn-green" onclick="saveHoldings()">Save</button>
         </div>
     </div>
