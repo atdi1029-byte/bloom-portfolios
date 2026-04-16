@@ -753,7 +753,7 @@
 
         /* ============ REBALANCE ALERTS ============ */
         .alert-section {
-            background: var(--card-bg);
+            background: var(--cream, #fef9f5);
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 1rem 1.1rem;
@@ -768,8 +768,8 @@
             margin-bottom: 0.6rem;
         }
         .alert-item {
-            background: rgba(232,139,147,0.06);
-            border: 1px solid rgba(232,139,147,0.15);
+            background: rgba(255,255,255,0.7);
+            border: 1px solid rgba(232,139,147,0.2);
             border-radius: 10px;
             padding: 0.55rem 0.7rem;
             margin-bottom: 0.45rem;
@@ -788,6 +788,19 @@
         .alert-tax {
             font-size: 0.65rem;
             color: var(--gold);
+        }
+        .drift-done-btn {
+            display: inline-block;
+            margin-top: 0.35rem;
+            padding: 3px 14px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            font-family: 'Quicksand', sans-serif;
+            color: #fff;
+            background: var(--leaf);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
         }
 
         /* ============ HISTORY LOG ============ */
@@ -2595,15 +2608,36 @@ function renderAlerts() {
         if (gap > 2) underweight.push({ ticker, gap: gap.toFixed(1) });
     });
     underweight.sort((a, b) => b.gap - a.gap);
-    function buildReallocHtml(sellAmt) {
-        if (underweight.length === 0 || !sellAmt || sellAmt <= 0) return '';
+    function getBuyAllocs(sellAmt) {
+        if (underweight.length === 0 || !sellAmt || sellAmt <= 0) return [];
         const top3 = underweight.slice(0, 3);
         const totalGap = top3.reduce((s, u) => s + parseFloat(u.gap), 0);
-        const parts = top3.map(u => {
+        // First pass: calculate raw amounts
+        let allocs = top3.map(u => {
             const share = parseFloat(u.gap) / totalGap;
             const buyAmt = sellAmt * share;
-            return `${u.ticker} ${fmt(buyAmt)}`;
+            const price = getPrice(u.ticker);
+            return { ticker: u.ticker, amount: buyAmt, shares: price > 0 ? buyAmt / price : 0, price, gap: parseFloat(u.gap) };
         });
+        // Filter out <$1 (Robinhood minimum) and redistribute
+        const under1 = allocs.filter(a => a.amount < 1);
+        const over1 = allocs.filter(a => a.amount >= 1);
+        if (under1.length > 0 && over1.length > 0) {
+            const extra = under1.reduce((s, a) => s + a.amount, 0);
+            const remainGap = over1.reduce((s, a) => s + a.gap, 0);
+            over1.forEach(a => {
+                const bonus = extra * (a.gap / remainGap);
+                a.amount += bonus;
+                a.shares = a.price > 0 ? a.amount / a.price : 0;
+            });
+            allocs = over1;
+        }
+        return allocs.filter(a => a.amount >= 1);
+    }
+    function buildReallocHtml(sellAmt) {
+        const allocs = getBuyAllocs(sellAmt);
+        if (allocs.length === 0) return '';
+        const parts = allocs.map(a => `${a.ticker} ${fmt(a.amount)}`);
         return '<span class="alert-realloc">Buy → <span style="color:var(--leaf);">' + parts.join(', ') + '</span></span>';
     }
     // Find most recent buy date per ticker for tax warnings
@@ -2638,22 +2672,65 @@ function renderAlerts() {
             if (currentPct >= targetPct * 2) {
                 const trimAmt = value - (totalVal * targetPct / 100);
                 const trimShares = trimAmt / price;
-                alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Sell ${fmt(trimAmt)}</strong> (${trimShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(trimAmt)}`);
+                alerts.push({ html: `<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Sell ${fmt(trimAmt)}</strong> (${trimShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(trimAmt)}`, sellTicker: ticker, sellAmt: trimAmt, sellShares: trimShares, sellPrice: price, buyAllocs: getBuyAllocs(trimAmt) });
             } else {
-                alerts.push(`${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)`);
+                alerts.push({ html: `${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)` });
             }
         }
         if (pnlPct >= 50 && calcValuationScore(ticker) < 0.30 && value > 100) {
             const targetVal = totalVal * targetPct / 100;
             const sellAmt = value - targetVal;
             const sellShares = sellAmt / price;
-            alerts.push(`<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — <strong style="color:var(--red);">Sell ${fmt(sellAmt)}</strong> (${sellShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(sellAmt)}`);
+            alerts.push({ html: `<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — <strong style="color:var(--red);">Sell ${fmt(sellAmt)}</strong> (${sellShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(sellAmt)}`, sellTicker: ticker, sellAmt: sellAmt, sellShares: sellShares, sellPrice: price, buyAllocs: getBuyAllocs(sellAmt) });
         }
     });
+    window._driftAlerts = alerts;
     const section = document.getElementById('alertSection');
     const list = document.getElementById('alertList');
-    if (alerts.length > 0) { section.style.display = 'block'; list.innerHTML = alerts.map(a => `<div class="alert-item">${a}</div>`).join(''); }
-    else { section.style.display = 'none'; }
+    if (alerts.length > 0) {
+        section.style.display = 'block';
+        list.innerHTML = alerts.map((a, i) => {
+            const doneBtn = a.sellTicker
+                ? ` <button class="drift-done-btn" onclick="executeDriftRebalance(${i})">Done</button>`
+                : '';
+            return `<div class="alert-item">${a.html}${doneBtn}</div>`;
+        }).join('');
+    } else { section.style.display = 'none'; }
+}
+
+// ====== DRIFT REBALANCE EXECUTE ======
+function executeDriftRebalance(idx) {
+    const alert = window._driftAlerts[idx];
+    if (!alert || !alert.sellTicker) return;
+    const msg = `Sell ${alert.sellShares.toFixed(2)} shares of ${alert.sellTicker} (${fmt(alert.sellAmt)})` +
+        (alert.buyAllocs.length > 0 ? `\nBuy: ${alert.buyAllocs.map(a => `${a.ticker} ${fmt(a.amount)} (${a.shares.toFixed(2)} shares)`).join(', ')}` : '') +
+        `\n\nExecute this rebalance?`;
+    if (!confirm(msg)) return;
+    const data = loadData();
+    const pd = data.portfolios[currentPortfolio];
+    const h = pd.holdings[alert.sellTicker];
+    if (!h || h.shares < alert.sellShares) { alert('Not enough shares to sell'); return; }
+    // Sell
+    const avgCost = h.shares > 0 ? h.costBasis / h.shares : 0;
+    const profit = alert.sellAmt - alert.sellShares * avgCost;
+    h.shares -= alert.sellShares;
+    h.costBasis -= alert.sellShares * avgCost;
+    if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
+    data.history.push({ id: 'sell_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: alert.sellAmt, type: 'sell', ticker: alert.sellTicker, shares: alert.sellShares, price: alert.sellPrice, profit });
+    // Buy underweight ETFs
+    if (alert.buyAllocs.length > 0) {
+        const buyAllocations = [];
+        alert.buyAllocs.forEach(a => {
+            if (a.amount <= 0) return;
+            if (!pd.holdings[a.ticker]) pd.holdings[a.ticker] = { shares: 0, costBasis: 0 };
+            pd.holdings[a.ticker].shares += a.shares;
+            pd.holdings[a.ticker].costBasis += a.amount;
+            buyAllocations.push({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price });
+        });
+        data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: alert.sellAmt, type: 'dca', allocations: buyAllocations, note: 'Drift rebalance from ' + alert.sellTicker });
+    }
+    saveData(data, true);
+    renderAll();
 }
 
 // ====== HISTORY ======
