@@ -1317,8 +1317,9 @@ function jsonpFetch(url, cb) {
     document.head.appendChild(script);
 }
 
-// JSONP sequential chunked push with inflight guard
+// JSONP sequential chunked push with inflight guard + retry
 var CHUNK_SIZE = 1800;
+var _MAX_RETRIES = 2;
 function _doCloudSave(onDone) {
     if (_saveInFlight) { _savePending = true; if (onDone) onDone(); return; }
     var data = loadData();
@@ -1341,30 +1342,57 @@ function _doCloudSave(onDone) {
     var json = JSON.stringify(essential);
     var encoded = encodeURIComponent(json);
     _saveInFlight = true;
+    function _finishSave(err) {
+        _saveInFlight = false;
+        if (err) console.warn('[Bloom] Cloud save failed:', err);
+        if (_savePending) { _savePending = false; _doCloudSave(); }
+        if (onDone) onDone(err);
+    }
     if (encoded.length < 7000) {
-        jsonpFetch(API_BASE + '?action=save_dca_data&data=' + encoded, function() {
-            _saveInFlight = false;
-            if (_savePending) { _savePending = false; _doCloudSave(); }
-            if (onDone) onDone();
-        });
+        var _singleRetry = 0;
+        function _trySingle() {
+            jsonpFetch(API_BASE + '?action=save_dca_data&data=' + encoded, function(err) {
+                if (err && _singleRetry < _MAX_RETRIES) {
+                    _singleRetry++;
+                    console.warn('[Bloom] Single save retry ' + _singleRetry);
+                    setTimeout(_trySingle, 1000 * _singleRetry);
+                } else {
+                    _finishSave(err);
+                }
+            });
+        }
+        _trySingle();
     } else {
         var chunks = [];
         for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
         var idx = 0;
+        var _chunkRetries = 0;
         function sendNext() {
             if (idx >= chunks.length) {
-                jsonpFetch(API_BASE + '?action=dca_save_done&n=' + chunks.length, function() {
-                    _saveInFlight = false;
-                    if (_savePending) { _savePending = false; _doCloudSave(); }
-                    if (onDone) onDone();
+                jsonpFetch(API_BASE + '?action=dca_save_done&n=' + chunks.length, function(err) {
+                    if (err && _chunkRetries < _MAX_RETRIES) {
+                        _chunkRetries++;
+                        console.warn('[Bloom] dca_save_done retry ' + _chunkRetries);
+                        setTimeout(sendNext, 1000 * _chunkRetries);
+                    } else {
+                        _finishSave(err);
+                    }
                 });
                 return;
             }
             var url = API_BASE + '?action=dca_save_chunk&i=' + idx + '&cd=' + encodeURIComponent(chunks[idx]);
             jsonpFetch(url, function(err) {
-                if (err) { _saveInFlight = false; if (onDone) onDone(err); return; }
-                idx++;
-                sendNext();
+                if (err && _chunkRetries < _MAX_RETRIES) {
+                    _chunkRetries++;
+                    console.warn('[Bloom] Chunk ' + idx + ' retry ' + _chunkRetries);
+                    setTimeout(sendNext, 1000 * _chunkRetries);
+                } else if (err) {
+                    _finishSave(err);
+                } else {
+                    _chunkRetries = 0;
+                    idx++;
+                    sendNext();
+                }
             });
         }
         sendNext();
