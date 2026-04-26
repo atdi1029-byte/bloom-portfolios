@@ -1221,13 +1221,14 @@ const PORTFOLIOS = {
             VXUS: { pct: 15, purpose: 'International diversification' },
             AVUV: { pct: 12, purpose: 'Small-cap value premium' },
             SCHD: { pct: 12, purpose: 'Dividend compounder' },
-            GDX:  { pct: 5,  purpose: 'Gold miners' },
+            GDX:  { pct: 4,  purpose: 'Gold miners' },
             SMH:  { pct: 4,  purpose: 'Semiconductors / AI' },
-            VO:   { pct: 2,  purpose: 'Mid-cap stocks' },
+            VO:   { pct: 1,  purpose: 'Mid-cap stocks' },
+            EWZ:  { pct: 2,  purpose: 'Brazil / Latin America' },
             IBIT: { pct: 2,  purpose: 'Bitcoin long-term hold' }
         },
-        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO'],
-        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO', 'IBIT']
+        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO', 'EWZ'],
+        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO', 'EWZ', 'IBIT']
     },
     ira: {
         name: 'IRA Retirement',
@@ -1274,7 +1275,7 @@ const ETF_COLORS = {
     GLD:  '#d4a843', VOO:  '#a07bc4',
     VTI:  '#5b9bd5', SCHG: '#5cbc8a', VXUS: '#d46ba0',
     AVUV: '#e88050', GDX:  '#d4a843', SMH:  '#50b4d8',
-    VO:   '#a070c0', IBIT: '#e8a040',
+    VO:   '#a070c0', EWZ:  '#3ab07a', IBIT: '#e8a040',
     JEPI: '#5cbc7a', JEPQ: '#40bca0', VNQ:  '#d89040',
     GLDM: '#e8c840', BND:  '#a0a8b0',
     NVDA: '#8ac050', MSFT: '#50a8e8', AAPL: '#b0b4b8',
