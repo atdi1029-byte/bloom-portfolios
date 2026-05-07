@@ -3895,6 +3895,11 @@ function mergeCloudData(cloud, isStartup, serverTs) {
 
 document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
+    // Render from localStorage immediately — don't wait for cloud
+    renderAll();
+    // Start price fetch right away (uses cache if network is slow)
+    refreshPrices();
+    // Load cloud data in parallel — merge + re-render when done
     loadFromCloud(function(cloud, serverTs) {
         mergeCloudData(cloud, true, serverTs);
         // Auto-apply Apr 14 2026 Robinhood reconcile (once)
@@ -3914,6 +3919,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })();
         syncReady = true;
+        renderAll();
         refreshPrices();
         fetchMagicFormula();
     });
