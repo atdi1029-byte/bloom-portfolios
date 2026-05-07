@@ -3893,9 +3893,20 @@ function mergeCloudData(cloud, isStartup, serverTs) {
             restored.lastModified = Date.now(); // make local newer so it wins next cloud compare
         }
         _splitSave(restored);
-        if (syncReady) setTimeout(() => _doCloudSave(), 200); // push corrected data to cloud
         if (!isStartup) renderAll();
     }
+    // EWZ correction — runs unconditionally regardless of who won timestamp compare
+    (function() {
+        const d = loadData();
+        if (!d.portfolios || !d.portfolios.growth || !d.portfolios.growth.holdings) return;
+        if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
+        if (d.portfolios.growth.holdings.EWZ.shares < 1.7) {
+            d.portfolios.growth.holdings.EWZ.shares = 1.76;
+            d.lastModified = Date.now();
+            _splitSave(d);
+            if (syncReady) setTimeout(() => _doCloudSave(), 300);
+        }
+    })();
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
     if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
     if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
@@ -3916,6 +3927,17 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
         }
         syncReady = true;
+        // EWZ direct fix on startup (handles case where cloud didn't win timestamp compare)
+        (function() {
+            const d = loadData();
+            if (d.portfolios && d.portfolios.growth && d.portfolios.growth.holdings &&
+                d.portfolios.growth.holdings.EWZ && d.portfolios.growth.holdings.EWZ.shares < 1.7) {
+                d.portfolios.growth.holdings.EWZ.shares = 1.76;
+                d.lastModified = Date.now();
+                _splitSave(d);
+                setTimeout(() => _doCloudSave(), 300);
+            }
+        })();
         renderAll();
         refreshPrices();
         fetchMagicFormula();
