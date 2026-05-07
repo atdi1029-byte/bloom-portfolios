@@ -3589,7 +3589,8 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
         const target = pDef.targets[ticker];
         const value = (pd.holdings[ticker] || { shares: 0 }).shares * getPrice(ticker);
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
-        const composite = Math.max(0, ((target.pct - currentPct) / 100) * 0.55 + calcValuationScore(ticker) * 0.45);
+        const gapScore = (target.pct - currentPct) / 100;
+        const composite = gapScore <= 0 ? 0 : Math.max(0, gapScore * 0.55 + calcValuationScore(ticker) * 0.45);
         etfScores.push({ ticker, composite, aboveTarget: currentPct >= target.pct + 10 });
     });
     const eligible = etfScores.filter(e => !e.aboveTarget);
