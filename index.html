@@ -1299,9 +1299,34 @@ function loadData() {
     } catch { return createDefaultData(); }
 }
 
+function safeLocalSave(key, payload) {
+    try {
+        localStorage.setItem(key, payload);
+        return true;
+    } catch (err) {
+        console.error('[Bloom] localStorage QUOTA ERROR:', err);
+        var dot = document.getElementById('statusDot');
+        var txt = document.getElementById('statusText');
+        if (dot) dot.className = 'status-dot error';
+        if (txt) txt.textContent = 'Storage full — cloud only';
+        return false;
+    }
+}
+
 function saveData(data, immediate) {
     data.lastModified = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // Trim history arrays before save to prevent quota growth
+    if (data.history && data.history.length > 500) {
+        data.history = data.history.slice(-500);
+    }
+    if (data.dividendHistory && data.dividendHistory.length > 500) {
+        data.dividendHistory = data.dividendHistory.slice(-500);
+    }
+    var payload = JSON.stringify(data);
+    var kb = Math.round(payload.length / 1024);
+    if (kb > 1000) console.warn('[Bloom] Storage size KB:', kb);
+    var ok = safeLocalSave(STORAGE_KEY, payload);
+    if (!ok) return; // NEVER sync to cloud after local save failure
     syncToCloud(immediate);
 }
 
@@ -1322,10 +1347,23 @@ function jsonpFetch(url, cb) {
 // JSONP sequential chunked push with inflight guard + retry
 var CHUNK_SIZE = 1800;
 var _MAX_RETRIES = 2;
+function hasRealData(data) {
+    if (!data || !data.portfolios) return false;
+    var hasHoldings = Object.values(data.portfolios).some(function(pd) {
+        return pd && pd.holdings && Object.values(pd.holdings).some(function(h) {
+            return h && (h.shares > 0 || h.costBasis > 0);
+        });
+    });
+    var hasHistory = (data.history && data.history.length > 0) ||
+                     (data.dividendHistory && data.dividendHistory.length > 0);
+    return hasHoldings || hasHistory;
+}
+
 function _doCloudSave(onDone) {
     if (_saveInFlight) { _savePending = true; if (onDone) onDone(); return; }
     var data = loadData();
-    if (!data || !data.portfolios || Object.keys(data.portfolios).length === 0) {
+    if (!hasRealData(data)) {
+        console.warn('[Bloom] Refusing cloud save — no real data (localStorage wiped?)');
         if (onDone) onDone(); return;
     }
     var essential = {
@@ -1432,7 +1470,7 @@ function mergeFromCloud(showFeedback, onComplete) {
 
 function beaconSave() {
     var data = loadData();
-    if (!data || !data.portfolios || Object.keys(data.portfolios).length === 0) return;
+    if (!hasRealData(data)) return;
     var essential = {
         portfolios: data.portfolios,
         cash: data.cash || {},
@@ -3657,11 +3695,15 @@ function mergeCloudData(cloud, isStartup, serverTs) {
         const histMap = new Map();
         (local.history || []).forEach(h => histMap.set(h.id, h));
         (restored.history || []).forEach(h => histMap.set(h.id, h));
-        restored.history = Array.from(histMap.values()).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        restored.history = Array.from(histMap.values())
+            .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+            .slice(-500); // hard cap
         const divMap = new Map();
         (local.dividendHistory || []).forEach(h => divMap.set(h.id, h));
         (restored.dividendHistory || []).forEach(h => divMap.set(h.id, h));
-        restored.dividendHistory = Array.from(divMap.values()).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        restored.dividendHistory = Array.from(divMap.values())
+            .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+            .slice(-500); // hard cap
         // Merge valueSnapshots: combine cloud + local, dedupe by date, keep latest 365
         const localSnaps = local.valueSnapshots || [];
         const cloudSnaps = restored.valueSnapshots || [];
@@ -3672,7 +3714,7 @@ function mergeCloudData(cloud, isStartup, serverTs) {
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(-365);
         if (serverTs) restored.lastSyncedAt = serverTs;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+        safeLocalSave(STORAGE_KEY, JSON.stringify(restored));
         if (!isStartup) renderAll();
     }
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
