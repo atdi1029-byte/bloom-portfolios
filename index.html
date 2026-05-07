@@ -2763,29 +2763,43 @@ function getDriftDismissed() {
         return clean;
     } catch { return {}; }
 }
-function dismissDriftAlert(ticker) {
+function dismissDriftAlert(ticker, portfolioKey) {
+    const pk = portfolioKey || currentPortfolio;
     const d = getDriftDismissed();
-    d[currentPortfolio + '_' + ticker] = Date.now();
+    d[pk + '_' + ticker] = Date.now();
     localStorage.setItem(DRIFT_DISMISS_KEY, JSON.stringify(d));
     renderAlerts();
 }
 
 // ====== ALERTS ======
-function renderAlerts() {
-    const pDef = getPortfolioDef();
-    const pd = getPortfolioData();
-    const totalVal = getTotalValue();
+// Collect drift/sell alerts for a single portfolio key.
+// Returns array of alert objects with an extra `portfolioKey` field.
+function _collectPortfolioAlerts(portfolioKey) {
+    const pDef = PORTFOLIOS[portfolioKey];
+    if (!pDef) return [];
+    const data = loadData();
+    const pd = data.portfolios[portfolioKey] || { holdings: {} };
+    // Compute total value for this portfolio
+    let totalVal = 0;
+    pDef.order.forEach(t => {
+        const h = pd.holdings[t] || { shares: 0 };
+        totalVal += h.shares * getPrice(t);
+    });
     const alerts = [];
-    if (pDef.hardCap > 0 && totalVal >= pDef.hardCap) alerts.push('Portfolio fully funded at ' + fmt(totalVal));
-    // Build list of underweight tickers for reallocation suggestions
+    if (pDef.hardCap > 0 && totalVal >= pDef.hardCap) {
+        alerts.push({
+            html: `<em style="color:var(--muted);">[${pDef.name}]</em>
+                   Portfolio fully funded at ${fmt(totalVal)}`,
+            portfolioKey
+        });
+    }
+    // underweight tickers for realloc suggestions
     const underweight = [];
     pDef.order.forEach(ticker => {
-        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
-        const price = getPrice(ticker);
-        const value = h.shares * price;
+        const h = pd.holdings[ticker] || { shares: 0 };
+        const value = h.shares * getPrice(ticker);
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
-        const targetPct = pDef.targets[ticker].pct;
-        const gap = targetPct - currentPct;
+        const gap = pDef.targets[ticker].pct - currentPct;
         if (gap > 2) underweight.push({ ticker, gap: gap.toFixed(1) });
     });
     underweight.sort((a, b) => b.gap - a.gap);
@@ -2793,16 +2807,16 @@ function renderAlerts() {
         if (underweight.length === 0 || !sellAmt || sellAmt <= 0) return [];
         const top3 = underweight.slice(0, 3);
         const totalGap = top3.reduce((s, u) => s + parseFloat(u.gap), 0);
-        // First pass: calculate raw amounts
         let allocs = top3.map(u => {
             const share = parseFloat(u.gap) / totalGap;
             const buyAmt = sellAmt * share;
             const price = getPrice(u.ticker);
-            return { ticker: u.ticker, amount: buyAmt, shares: price > 0 ? buyAmt / price : 0, price, gap: parseFloat(u.gap) };
+            return { ticker: u.ticker, amount: buyAmt,
+                     shares: price > 0 ? buyAmt / price : 0, price,
+                     gap: parseFloat(u.gap) };
         });
-        // Filter out <$1 (Robinhood minimum) and redistribute
         const under1 = allocs.filter(a => a.amount < 1);
-        const over1 = allocs.filter(a => a.amount >= 1);
+        const over1  = allocs.filter(a => a.amount >= 1);
         if (under1.length > 0 && over1.length > 0) {
             const extra = under1.reduce((s, a) => s + a.amount, 0);
             const remainGap = over1.reduce((s, a) => s + a.gap, 0);
@@ -2819,20 +2833,24 @@ function renderAlerts() {
         const allocs = getBuyAllocs(sellAmt);
         if (allocs.length === 0) return '';
         const parts = allocs.map(a => `${a.ticker} ${fmt(a.amount)}`);
-        return '<span class="alert-realloc">Buy → <span style="color:var(--leaf);">' + parts.join(', ') + '</span></span>';
+        return '<span class="alert-realloc">Buy → '
+            + '<span style="color:var(--leaf);">' + parts.join(', ') + '</span></span>';
     }
-    // Find most recent buy date per ticker for tax warnings
-    const data = loadData();
+    // Tax warning: most recent buy per ticker
     const lastBuyDate = {};
     (data.history || []).forEach(h => {
-        if (h.portfolio !== currentPortfolio || h.type === 'sell') return;
+        if (h.portfolio !== portfolioKey || h.type === 'sell') return;
         (h.allocations || []).forEach(a => {
             const d = new Date(h.date);
-            if (!lastBuyDate[a.ticker] || d > lastBuyDate[a.ticker]) lastBuyDate[a.ticker] = d;
+            if (!lastBuyDate[a.ticker] || d > lastBuyDate[a.ticker])
+                lastBuyDate[a.ticker] = d;
         });
     });
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const dismissed = getDriftDismissed();
+    const portfolioLabel = portfolioKey !== currentPortfolio
+        ? `<em style="color:var(--muted);">[${pDef.name}]</em> ` : '';
     pDef.order.forEach(ticker => {
         const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
         const price = getPrice(ticker);
@@ -2840,27 +2858,42 @@ function renderAlerts() {
         const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
         const targetPct = pDef.targets[ticker].pct;
         const drift = Math.abs(currentPct - targetPct);
-        const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
-        // Tax warning: short-term gains if last buy < 1 year ago
+        const pnlPct = h.costBasis > 0
+            ? ((value - h.costBasis) / h.costBasis * 100) : 0;
         let taxWarn = '';
         if (lastBuyDate[ticker] && lastBuyDate[ticker] > oneYearAgo && pnlPct > 0) {
             const ltDate = new Date(lastBuyDate[ticker]);
             ltDate.setFullYear(ltDate.getFullYear() + 1);
-            const months = Math.ceil((ltDate - new Date()) / (1000 * 60 * 60 * 24 * 30));
-            taxWarn = ` <span class="alert-tax">· held &lt;1yr (long-term in ${months}mo)</span>`;
+            const months = Math.ceil(
+                (ltDate - new Date()) / (1000 * 60 * 60 * 24 * 30));
+            taxWarn = ` <span class="alert-tax">· held &lt;1yr`
+                + ` (long-term in ${months}mo)</span>`;
         }
-        const dismissKey = currentPortfolio + '_' + ticker;
-        const dismissed = getDriftDismissed();
-        if (dismissed[dismissKey]) return; // skip dismissed alerts
+        const dismissKey = portfolioKey + '_' + ticker;
+        if (dismissed[dismissKey]) return;
         if (drift > 10 && totalVal > 1000) {
             if (currentPct >= targetPct * 2) {
                 const trimAmt = value - (totalVal * targetPct / 100);
                 const trimShares = trimAmt / price;
                 if (trimAmt >= 1 && trimShares >= 0.01) {
-                alerts.push({ html: `<strong style="color:var(--rose-deep);">${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}% — <strong style="color:var(--red);">Sell ${fmt(trimAmt)}</strong> (${trimShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(trimAmt)}`, sellTicker: ticker, sellAmt: trimAmt, sellShares: trimShares, sellPrice: price, buyAllocs: getBuyAllocs(trimAmt), ticker: ticker });
+                    alerts.push({
+                        html: `${portfolioLabel}<strong style="color:var(--rose-deep);">`
+                            + `${ticker}</strong>: ${fmtPct(currentPct)} vs ${targetPct}%`
+                            + ` — <strong style="color:var(--red);">Sell ${fmt(trimAmt)}`
+                            + `</strong> (${trimShares.toFixed(2)} shares @ ${fmt(price)})`
+                            + `${taxWarn}${buildReallocHtml(trimAmt)}`,
+                        sellTicker: ticker, sellAmt: trimAmt,
+                        sellShares: trimShares, sellPrice: price,
+                        buyAllocs: getBuyAllocs(trimAmt),
+                        ticker, portfolioKey
+                    });
                 }
             } else {
-                alerts.push({ html: `${ticker}: ${fmtPct(currentPct)} vs ${targetPct}% target (${fmtPct(drift)} drift)`, ticker: ticker });
+                alerts.push({
+                    html: `${portfolioLabel}${ticker}: ${fmtPct(currentPct)}`
+                        + ` vs ${targetPct}% target (${fmtPct(drift)} drift)`,
+                    ticker, portfolioKey
+                });
             }
         }
         if (pnlPct >= 50 && calcValuationScore(ticker) < 0.30 && value > 100) {
@@ -2868,8 +2901,32 @@ function renderAlerts() {
             const sellAmt = value - targetVal;
             const sellShares = sellAmt / price;
             if (sellAmt < 1 || sellShares < 0.01) return;
-            alerts.push({ html: `<strong style="color:var(--rose-deep);">${ticker}</strong>: Up <strong style="color:var(--leaf);">${pnlPct.toFixed(0)}%</strong> and overvalued — <strong style="color:var(--red);">Sell ${fmt(sellAmt)}</strong> (${sellShares.toFixed(2)} shares @ ${fmt(price)})${taxWarn}${buildReallocHtml(sellAmt)}`, sellTicker: ticker, sellAmt: sellAmt, sellShares: sellShares, sellPrice: price, buyAllocs: getBuyAllocs(sellAmt), ticker: ticker });
+            alerts.push({
+                html: `${portfolioLabel}<strong style="color:var(--rose-deep);">`
+                    + `${ticker}</strong>: Up <strong style="color:var(--leaf);">`
+                    + `${pnlPct.toFixed(0)}%</strong> and overvalued`
+                    + ` — <strong style="color:var(--red);">Sell ${fmt(sellAmt)}`
+                    + `</strong> (${sellShares.toFixed(2)} shares @ ${fmt(price)})`
+                    + `${taxWarn}${buildReallocHtml(sellAmt)}`,
+                sellTicker: ticker, sellAmt, sellShares, sellPrice: price,
+                buyAllocs: getBuyAllocs(sellAmt),
+                ticker, portfolioKey
+            });
         }
+    });
+    return alerts;
+}
+
+function renderAlerts() {
+    // On the Cushion page, show drift alerts from ALL portfolios.
+    // On any other page, show only that portfolio's alerts.
+    let portfoliosToScan = [currentPortfolio];
+    if (currentPortfolio === 'cushion') {
+        portfoliosToScan = Object.keys(PORTFOLIOS);
+    }
+    const alerts = [];
+    portfoliosToScan.forEach(pk => {
+        _collectPortfolioAlerts(pk).forEach(a => alerts.push(a));
     });
     window._driftAlerts = alerts;
     const section = document.getElementById('alertSection');
@@ -2877,7 +2934,15 @@ function renderAlerts() {
     const doneBtn = document.getElementById('driftDoneBtn');
     if (alerts.length > 0) {
         section.style.display = 'block';
-        list.innerHTML = alerts.map(a => `<div class="alert-item">${a.html}${a.ticker ? `<button class="alert-dismiss" onclick="dismissDriftAlert('${a.ticker}')" title="Dismiss for 7 days">&times;</button>` : ''}</div>`).join('');
+        list.innerHTML = alerts.map(a =>
+            `<div class="alert-item">${a.html}`
+            + (a.ticker
+                ? `<button class="alert-dismiss"`
+                  + ` onclick="dismissDriftAlert('${a.ticker}','${a.portfolioKey}')" `
+                  + `title="Dismiss for 7 days">&times;</button>`
+                : '')
+            + `</div>`
+        ).join('');
         doneBtn.style.display = alerts.some(a => a.sellTicker) ? '' : 'none';
     } else { section.style.display = 'none'; doneBtn.style.display = 'none'; }
 }
