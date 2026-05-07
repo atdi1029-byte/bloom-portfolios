@@ -949,6 +949,7 @@
             </select>
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
+            <button class="btn" id="restoreBtn" onclick="forceRestoreFromCloud()" style="display:none;">↓ Restore</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
             <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
@@ -1314,7 +1315,7 @@ function jsonpFetch(url, cb) {
     window[cbName] = function(resp) { done = true; delete window[cbName]; script.remove(); cb(null, resp); };
     script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
     script.onerror = function() { if (!done) { delete window[cbName]; script.remove(); cb('Failed'); } };
-    setTimeout(function() { if (!done) { delete window[cbName]; script.remove(); cb('Timeout'); } }, 15000);
+    setTimeout(function() { if (!done) { delete window[cbName]; script.remove(); cb('Timeout'); } }, 30000);
     document.head.appendChild(script);
 }
 
@@ -1345,7 +1346,15 @@ function _doCloudSave(onDone) {
     _saveInFlight = true;
     function _finishSave(err) {
         _saveInFlight = false;
-        if (err) console.warn('[Bloom] Cloud save failed:', err);
+        if (err) {
+            console.warn('[Bloom] Cloud save failed:', err);
+            var dot = document.getElementById('statusDot');
+            var txt = document.getElementById('statusText');
+            if (dot) dot.className = 'status-dot error';
+            if (txt) txt.textContent = 'Save failed — tap Restore';
+            var rb = document.getElementById('restoreBtn');
+            if (rb) rb.style.display = '';
+        }
         if (_savePending) { _savePending = false; _doCloudSave(); }
         if (onDone) onDone(err);
     }
@@ -1446,13 +1455,47 @@ function beaconSave() {
     fireGet(API_BASE + '?action=dca_save_done&n=' + chunks.length);
 }
 
-function loadFromCloud(cb) {
+function loadFromCloud(cb, _attempt) {
+    _attempt = _attempt || 1;
     jsonpFetch(API_BASE + '?action=load_dca_data', function(err, result) {
-        if (err || !result) { cb(null, null); return; }
+        if (err || !result) {
+            console.warn('[Bloom] loadFromCloud attempt ' + _attempt + ' failed:', err);
+            if (_attempt < 3) {
+                setTimeout(function() { loadFromCloud(cb, _attempt + 1); }, 3000);
+            } else {
+                console.error('[Bloom] loadFromCloud failed after 3 attempts');
+                var dot = document.getElementById('statusDot');
+                var txt = document.getElementById('statusText');
+                if (dot) dot.className = 'status-dot error';
+                if (txt) txt.textContent = 'Cloud sync failed';
+                var rb = document.getElementById('restoreBtn');
+                if (rb) rb.style.display = '';
+                cb(null, null);
+            }
+            return;
+        }
         if (result.status === 'ok' && result.data) {
             var parsed = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
             cb(parsed, result.lastSaved || null);
         } else { cb(null, null); }
+    });
+}
+
+function forceRestoreFromCloud() {
+    var dot = document.getElementById('statusDot');
+    var txt = document.getElementById('statusText');
+    if (dot) dot.className = 'status-dot loading';
+    if (txt) txt.textContent = 'Restoring...';
+    loadFromCloud(function(cloud, serverTs) {
+        if (cloud && cloud.portfolios) {
+            mergeCloudData(cloud, true, serverTs);
+            renderAll();
+            if (dot) dot.className = 'status-dot ok';
+            if (txt) txt.textContent = 'Restored from cloud';
+        } else {
+            if (dot) dot.className = 'status-dot error';
+            if (txt) txt.textContent = 'Restore failed — cloud empty?';
+        }
     });
 }
 
