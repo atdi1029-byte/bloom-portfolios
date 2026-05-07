@@ -3902,17 +3902,17 @@ document.addEventListener('DOMContentLoaded', () => {
             applyRobinhoodFix_auto();
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
         }
-        // Fix EWZ share count to match Robinhood (May 7 2026)
-        if (!localStorage.getItem('bloom_rh_fix_may7_ewz')) {
-            (function() {
-                const d = loadData();
-                if (!d.portfolios.growth) d.portfolios.growth = { holdings: {} };
-                if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 0 };
+        // Fix EWZ share count — runs every load until cloud has correct value
+        (function() {
+            const d = loadData();
+            if (!d.portfolios || !d.portfolios.growth) return;
+            if (!d.portfolios.growth.holdings) d.portfolios.growth.holdings = {};
+            if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
+            if (d.portfolios.growth.holdings.EWZ.shares < 1.7) {
                 d.portfolios.growth.holdings.EWZ.shares = 1.76;
                 saveData(d, true);
-            })();
-            localStorage.setItem('bloom_rh_fix_may7_ewz', '1');
-        }
+            }
+        })();
         syncReady = true;
         refreshPrices();
         fetchMagicFormula();
