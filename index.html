@@ -3885,7 +3885,15 @@ function mergeCloudData(cloud, isStartup, serverTs) {
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(-365);
         if (serverTs) restored.lastSyncedAt = serverTs;
+        // EWZ correction: cloud has wrong share count — fix before saving
+        if (restored.portfolios && restored.portfolios.growth &&
+            restored.portfolios.growth.holdings && restored.portfolios.growth.holdings.EWZ &&
+            restored.portfolios.growth.holdings.EWZ.shares < 1.7) {
+            restored.portfolios.growth.holdings.EWZ.shares = 1.76;
+            restored.lastModified = Date.now(); // make local newer so it wins next cloud compare
+        }
         _splitSave(restored);
+        if (syncReady) setTimeout(() => _doCloudSave(), 200); // push corrected data to cloud
         if (!isStartup) renderAll();
     }
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
@@ -3908,17 +3916,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
         }
         syncReady = true;
-        // Fix EWZ share count — push to cloud until it sticks
-        (function() {
-            const d = loadData();
-            if (!d.portfolios || !d.portfolios.growth) return;
-            if (!d.portfolios.growth.holdings) d.portfolios.growth.holdings = {};
-            if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
-            if (d.portfolios.growth.holdings.EWZ.shares < 1.7) {
-                d.portfolios.growth.holdings.EWZ.shares = 1.76;
-                saveData(d, true); // syncReady is now true — cloud push goes through
-            }
-        })();
         renderAll();
         refreshPrices();
         fetchMagicFormula();
