@@ -3927,17 +3927,17 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
         }
         syncReady = true;
-        // EWZ direct fix on startup (handles case where cloud didn't win timestamp compare)
-        (function() {
+        // EWZ one-time cloud push — runs once until cloud has correct value
+        if (!localStorage.getItem('bloom_ewz_176_cloud_ok')) {
             const d = loadData();
-            if (d.portfolios && d.portfolios.growth && d.portfolios.growth.holdings &&
-                d.portfolios.growth.holdings.EWZ && d.portfolios.growth.holdings.EWZ.shares < 1.7) {
+            if (d.portfolios && d.portfolios.growth && d.portfolios.growth.holdings) {
+                if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
                 d.portfolios.growth.holdings.EWZ.shares = 1.76;
                 d.lastModified = Date.now();
                 _splitSave(d);
-                setTimeout(() => _doCloudSave(), 300);
+                setTimeout(() => { _doCloudSave(); localStorage.setItem('bloom_ewz_176_cloud_ok', '1'); }, 300);
             }
-        })();
+        }
         renderAll();
         refreshPrices();
         fetchMagicFormula();
