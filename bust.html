@@ -4,13 +4,25 @@
 <p>Clearing cache and service worker...</p>
 <script>
 (async () => {
+  // Patch EWZ directly in localStorage before clearing anything
+  try {
+    const core = JSON.parse(localStorage.getItem('dca_core_v1') || 'null');
+    if (core && core.portfolios && core.portfolios.growth &&
+        core.portfolios.growth.holdings && core.portfolios.growth.holdings.EWZ &&
+        core.portfolios.growth.holdings.EWZ.shares < 1.7) {
+      core.portfolios.growth.holdings.EWZ.shares = 1.76;
+      core.lastModified = Date.now();
+      localStorage.setItem('dca_core_v1', JSON.stringify(core));
+    }
+  } catch(e) {}
+
   if ('serviceWorker' in navigator) {
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const r of regs) await r.unregister();
   }
   const keys = await caches.keys();
   for (const k of keys) await caches.delete(k);
-  // Clear app localStorage (cloud will restore on next load)
+  // Clear prices cache and misc flags (keep portfolio data — cloud will sync)
   localStorage.removeItem('dca_portfolio_v1');
   localStorage.removeItem('dca_prices_cache');
   localStorage.removeItem('bloom_dismissed_opps');
