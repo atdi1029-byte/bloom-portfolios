@@ -3907,7 +3907,8 @@ document.addEventListener('DOMContentLoaded', () => {
             applyRobinhoodFix_auto();
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
         }
-        // Fix EWZ share count — runs every load until cloud has correct value
+        syncReady = true;
+        // Fix EWZ share count — push to cloud until it sticks
         (function() {
             const d = loadData();
             if (!d.portfolios || !d.portfolios.growth) return;
@@ -3915,10 +3916,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
             if (d.portfolios.growth.holdings.EWZ.shares < 1.7) {
                 d.portfolios.growth.holdings.EWZ.shares = 1.76;
-                saveData(d, true);
+                saveData(d, true); // syncReady is now true — cloud push goes through
             }
         })();
-        syncReady = true;
         renderAll();
         refreshPrices();
         fetchMagicFormula();
