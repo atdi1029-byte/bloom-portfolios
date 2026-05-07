@@ -1866,7 +1866,11 @@ function renderBuyOpps() {
     const grid = document.getElementById('buyOppsGrid');
     if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
     const opps = [];
+    // Tickers already scanned (avoid duplicates between portfolio + MF)
+    const scanned = new Set();
+    // 1. Portfolio-owned stocks
     pDef.order.forEach(ticker => {
+        scanned.add(ticker);
         if (dismissedOpps.has(ticker)) return;
         const valScore = calcValuationScore(ticker);
         const p = livePrices[ticker] || {};
@@ -1874,14 +1878,39 @@ function renderBuyOpps() {
         const high52 = p.high52 || 0;
         if (valScore >= 0.60 && price > 0) {
             const drawdown = high52 > 0 ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
-            opps.push({ ticker, valScore, rsi: p.rsi14 || 50, price, drawdown, purpose: pDef.targets[ticker].purpose });
+            opps.push({
+                ticker, valScore, rsi: p.rsi14 || 50, price, drawdown,
+                purpose: pDef.targets[ticker].purpose, mfRank: null
+            });
         }
     });
+    // 2. Magic Formula top-30 — show when oversold, even if not yet owned
+    if (mfData && mfData.stocks) {
+        mfData.stocks.forEach(s => {
+            if (scanned.has(s.ticker)) return; // already covered above
+            if (dismissedOpps.has(s.ticker)) return;
+            const valScore = calcValuationScore(s.ticker);
+            const p = livePrices[s.ticker] || {};
+            const price = p.price || 0;
+            const high52 = p.high52 || 0;
+            if (valScore >= 0.60 && price > 0) {
+                const drawdown = high52 > 0
+                    ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
+                opps.push({
+                    ticker: s.ticker, valScore, rsi: p.rsi14 || 50,
+                    price, drawdown,
+                    purpose: s.name,
+                    mfRank: s.rank
+                });
+            }
+        });
+    }
     if (opps.length === 0) { section.classList.remove('show'); return; }
     section.classList.add('show');
     grid.innerHTML = opps.sort((a, b) => b.valScore - a.valScore).map(o => `
         <div class="buy-opp-card" style="position:relative;">
             <div onclick="dismissOpp('${o.ticker}')" style="position:absolute; top:4px; right:8px; cursor:pointer; font-size:1.1rem; color:var(--text-dim); line-height:1;">&times;</div>
+            ${o.mfRank ? `<div style="font-size:0.5rem; color:var(--rose-deep); font-weight:700; text-transform:uppercase; margin-bottom:2px;">Magic Formula #${o.mfRank}</div>` : ''}
             <div class="buy-opp-ticker">${o.ticker}</div>
             <div style="font-size:0.55rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${o.purpose}</div>
             <div class="buy-opp-price">${fmt(o.price)}</div>
@@ -1941,6 +1970,7 @@ function fetchMagicFormula() {
             if (parsed.ts && Date.now() - parsed.ts < MF_CACHE_HOURS * 3600000) {
                 mfData = parsed.data;
                 renderMagicFormula();
+                _fetchMFTechnicals();
                 return;
             }
         } catch(e) {}
@@ -1950,7 +1980,35 @@ function fetchMagicFormula() {
         mfData = resp;
         localStorage.setItem(MF_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: resp }));
         renderMagicFormula();
+        _fetchMFTechnicals();
     });
+}
+
+// Fetch RSI/SMA/high52 for MF tickers not already in livePrices.
+// Requires Apps Script dca_prices to support &extra=TICKER,TICKER param.
+function _fetchMFTechnicals() {
+    if (!mfData || !mfData.stocks) return;
+    // Find MF tickers not already covered by portfolio price fetch
+    const allPortfolioTickers = new Set(
+        Object.values(PORTFOLIOS).flatMap(p => p.order)
+    );
+    const missing = mfData.stocks
+        .map(s => s.ticker)
+        .filter(t => !allPortfolioTickers.has(t) && !livePrices[t]);
+    if (missing.length === 0) { renderBuyOpps(); return; }
+    // Request technicals for missing MF tickers via dca_prices with extra param
+    fetch(API_BASE + '?action=dca_prices&extra=' + missing.join(','))
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok' && data.etfs) {
+                data.etfs.forEach(e => {
+                    // Only add — don't overwrite existing portfolio prices
+                    if (!livePrices[e.ticker]) livePrices[e.ticker] = e;
+                });
+            }
+        })
+        .catch(() => {})
+        .finally(() => renderBuyOpps());
 }
 
 function toggleMF() {
