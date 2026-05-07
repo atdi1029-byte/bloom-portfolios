@@ -1601,15 +1601,17 @@ async function refreshPrices() {
             const allPortTickers = [...new Set(Object.values(PORTFOLIOS).flatMap(p => p.order))];
             const missingTickers = allPortTickers.filter(t => !livePrices[t] || !livePrices[t].price);
             if (missingTickers.length > 0) {
-                fetch(API_BASE + '?action=dca_prices&extra=' + missingTickers.join(','))
-                    .then(r => r.json())
-                    .then(d2 => {
-                        if (d2.status === 'ok' && d2.etfs) {
-                            d2.etfs.forEach(e => { livePrices[e.ticker] = e; });
-                            localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
-                            renderAll();
+                Promise.all(missingTickers.map(t => new Promise(resolve => {
+                    jsonpFetch(API_BASE + '?action=quote&ticker=' + t, (err, resp) => {
+                        if (!err && resp && resp.status === 'ok' && resp.price) {
+                            livePrices[t] = { ticker: t, price: resp.price, high52: 0, low52: 0, changePct: 0, rsi14: 50, sma50: 0, sma200: 0 };
                         }
-                    }).catch(() => {});
+                        resolve();
+                    });
+                }))).then(() => {
+                    localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
+                    renderAll();
+                });
             }
             dot.className = 'status-dot ok';
             txt.textContent = 'Live';
