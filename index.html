@@ -1348,15 +1348,13 @@ function jsonpFetch(url, cb) {
 var CHUNK_SIZE = 1800;
 var _MAX_RETRIES = 2;
 function hasRealData(data) {
-    if (!data || !data.portfolios) return false;
-    var hasHoldings = Object.values(data.portfolios).some(function(pd) {
-        return pd && pd.holdings && Object.values(pd.holdings).some(function(h) {
-            return h && (h.shares > 0 || h.costBasis > 0);
-        });
-    });
-    var hasHistory = (data.history && data.history.length > 0) ||
-                     (data.dividendHistory && data.dividendHistory.length > 0);
-    return hasHoldings || hasHistory;
+    // Structural check — not content. createDefaultData() has portfolios+cash
+    // but no lastModified (never been saved by the user).
+    // We refuse to cloud-push any state that has never had a real save.
+    if (!data || typeof data !== 'object') return false;
+    if (!data.portfolios || !data.cash) return false;
+    if (!data.lastModified) return false; // never actually saved
+    return true;
 }
 
 function _doCloudSave(onDone) {
