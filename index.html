@@ -1592,12 +1592,25 @@ async function refreshPrices() {
     dot.className = 'status-dot loading';
     txt.textContent = 'Fetching...';
     try {
-        const allTickers = [...new Set(Object.values(PORTFOLIOS).flatMap(p => p.order))];
-        const resp = await fetch(API_BASE + '?action=dca_prices&extra=' + allTickers.join(','));
+        const resp = await fetch(API_BASE + '?action=dca_prices');
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (data.status === 'ok' && data.etfs) {
             data.etfs.forEach(e => { livePrices[e.ticker] = e; });
+            // Fetch prices for any portfolio tickers not in the standard list
+            const allPortTickers = [...new Set(Object.values(PORTFOLIOS).flatMap(p => p.order))];
+            const missingTickers = allPortTickers.filter(t => !livePrices[t] || !livePrices[t].price);
+            if (missingTickers.length > 0) {
+                fetch(API_BASE + '?action=dca_prices&extra=' + missingTickers.join(','))
+                    .then(r => r.json())
+                    .then(d2 => {
+                        if (d2.status === 'ok' && d2.etfs) {
+                            d2.etfs.forEach(e => { livePrices[e.ticker] = e; });
+                            localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
+                            renderAll();
+                        }
+                    }).catch(() => {});
+            }
             dot.className = 'status-dot ok';
             txt.textContent = 'Live';
             localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
