@@ -1592,7 +1592,8 @@ async function refreshPrices() {
     dot.className = 'status-dot loading';
     txt.textContent = 'Fetching...';
     try {
-        const resp = await fetch(API_BASE + '?action=dca_prices');
+        const allTickers = [...new Set(Object.values(PORTFOLIOS).flatMap(p => p.order))];
+        const resp = await fetch(API_BASE + '?action=dca_prices&extra=' + allTickers.join(','));
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (data.status === 'ok' && data.etfs) {
@@ -3884,6 +3885,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!localStorage.getItem('bloom_rh_fix_apr14_v3')) {
             applyRobinhoodFix_auto();
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
+        }
+        // Fix EWZ share count to match Robinhood (May 7 2026)
+        if (!localStorage.getItem('bloom_rh_fix_may7_ewz')) {
+            (function() {
+                const d = loadData();
+                if (!d.portfolios.growth) d.portfolios.growth = { holdings: {} };
+                if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 0 };
+                d.portfolios.growth.holdings.EWZ.shares = 1.76;
+                saveData(d, true);
+            })();
+            localStorage.setItem('bloom_rh_fix_may7_ewz', '1');
         }
         syncReady = true;
         refreshPrices();
