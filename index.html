@@ -1188,7 +1188,11 @@
 <script>
 // ====== CONFIG ======
 const API_BASE = 'https://script.google.com/macros/s/AKfycbwVwBpJsq5kybfAuo8DpvODludwPehRWeT81bRe1PftdSuYCXv90FnewvIsZtCZIUv6Cg/exec';
-const STORAGE_KEY = 'dca_portfolio_v1';
+const STORAGE_KEY = 'dca_portfolio_v1'; // legacy — migrated on first load
+const SK_CORE = 'dca_core_v1';
+const SK_HISTORY = 'dca_history_v1';
+const SK_DIVIDENDS = 'dca_dividends_v1';
+const SK_SNAPSHOTS = 'dca_snapshots_v1';
 let syncReady = false;
 let _saveInFlight = false;
 let _savePending = false;
@@ -1293,9 +1297,38 @@ let pendingDCA = null;
 let divLogTicker = '';
 
 // ====== STORAGE ======
+function _splitSave(data) {
+    var core = {
+        portfolios: data.portfolios || {},
+        cash: data.cash || {},
+        splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
+        splitterTotal: data.splitterTotal || '',
+        lastModified: data.lastModified,
+        lastSyncedAt: data.lastSyncedAt
+    };
+    var coreOk = safeLocalSave(SK_CORE, JSON.stringify(core));
+    safeLocalSave(SK_HISTORY, JSON.stringify(data.history || []));
+    safeLocalSave(SK_DIVIDENDS, JSON.stringify(data.dividendHistory || []));
+    safeLocalSave(SK_SNAPSHOTS, JSON.stringify(data.valueSnapshots || []));
+    return coreOk;
+}
+
 function loadData() {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || createDefaultData();
+        // One-time migration from legacy monolithic key
+        var legacy = localStorage.getItem(STORAGE_KEY);
+        if (legacy) {
+            var parsed = JSON.parse(legacy);
+            _splitSave(parsed);
+            localStorage.removeItem(STORAGE_KEY);
+        }
+        var core = JSON.parse(localStorage.getItem(SK_CORE) || 'null');
+        if (!core) return createDefaultData();
+        return Object.assign({}, core, {
+            history: JSON.parse(localStorage.getItem(SK_HISTORY) || '[]'),
+            dividendHistory: JSON.parse(localStorage.getItem(SK_DIVIDENDS) || '[]'),
+            valueSnapshots: JSON.parse(localStorage.getItem(SK_SNAPSHOTS) || '[]')
+        });
     } catch { return createDefaultData(); }
 }
 
@@ -1315,18 +1348,18 @@ function safeLocalSave(key, payload) {
 
 function saveData(data, immediate) {
     data.lastModified = Date.now();
-    // Trim history arrays before save to prevent quota growth
-    if (data.history && data.history.length > 500) {
-        data.history = data.history.slice(-500);
+    // Trim arrays — hard caps to control quota usage
+    if (data.history && data.history.length > 250) {
+        data.history = data.history.slice(-250);
     }
-    if (data.dividendHistory && data.dividendHistory.length > 500) {
-        data.dividendHistory = data.dividendHistory.slice(-500);
+    if (data.dividendHistory && data.dividendHistory.length > 250) {
+        data.dividendHistory = data.dividendHistory.slice(-250);
     }
-    var payload = JSON.stringify(data);
-    var kb = Math.round(payload.length / 1024);
-    if (kb > 1000) console.warn('[Bloom] Storage size KB:', kb);
-    var ok = safeLocalSave(STORAGE_KEY, payload);
-    if (!ok) return; // NEVER sync to cloud after local save failure
+    if (data.valueSnapshots && data.valueSnapshots.length > 365) {
+        data.valueSnapshots = data.valueSnapshots.slice(-365);
+    }
+    var ok = _splitSave(data);
+    if (!ok) return; // core save failed — never sync to cloud
     syncToCloud(immediate);
 }
 
@@ -3712,7 +3745,7 @@ function mergeCloudData(cloud, isStartup, serverTs) {
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(-365);
         if (serverTs) restored.lastSyncedAt = serverTs;
-        safeLocalSave(STORAGE_KEY, JSON.stringify(restored));
+        _splitSave(restored);
         if (!isStartup) renderAll();
     }
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
