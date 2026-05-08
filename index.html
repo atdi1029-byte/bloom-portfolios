@@ -1679,7 +1679,7 @@ function getPortfolioData() {
     if (!data.portfolios[currentPortfolio]) {
         data.portfolios[currentPortfolio] = { holdings: {} };
         getPortfolioDef().order.forEach(t => { data.portfolios[currentPortfolio].holdings[t] = { shares: 0, costBasis: 0 }; });
-        saveData(data);
+        _splitSave(data); // don't stamp lastModified — keeps cloud able to win on fresh install
     }
     return data.portfolios[currentPortfolio];
 }
