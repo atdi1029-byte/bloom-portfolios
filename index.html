@@ -1381,11 +1381,11 @@ function jsonpFetch(url, cb) {
 var CHUNK_SIZE = 1800;
 var _MAX_RETRIES = 2;
 function hasRealData(data) {
-    // Structural check — not content. createDefaultData() has portfolios+cash
+    // Structural check — not content. createDefaultData() has portfolios
     // but no lastModified (never been saved by the user).
     // We refuse to cloud-push any state that has never had a real save.
     if (!data || typeof data !== 'object') return false;
-    if (!data.portfolios || !data.cash) return false;
+    if (!data.portfolios) return false;
     if (!data.lastModified) return false; // never actually saved
     return true;
 }
@@ -3927,6 +3927,8 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
         }
         syncReady = true;
+        // Push local data to cloud on startup (catches cases where cloud was never populated)
+        setTimeout(() => { if (hasRealData(loadData())) _doCloudSave(); }, 500);
         // EWZ one-time cloud push — runs once until cloud has correct value
         if (!localStorage.getItem('bloom_ewz_176_cloud_ok')) {
             const d = loadData();
