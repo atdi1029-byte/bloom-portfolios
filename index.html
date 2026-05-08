@@ -1561,11 +1561,21 @@ function forcePushToCloud() {
     if (!data.portfolios) { if (txt) txt.textContent = 'No data'; return; }
     if (!data.lastModified) { data.lastModified = Date.now(); _splitSave(data); }
     if (dot) dot.className = 'status-dot loading';
-    if (txt) txt.textContent = 'Pushing...';
-    syncReady = true;
-    _doCloudSave(function(err) {
-        if (dot) dot.className = err ? 'status-dot error' : 'status-dot ok';
-        if (txt) txt.textContent = err ? 'Push failed: ' + err : 'Pushed!';
+    if (txt) txt.textContent = 'Testing endpoint...';
+    // First ping the endpoint to confirm it's alive
+    jsonpFetch(API_BASE + '?action=ping', function(err, resp) {
+        if (err || !resp) {
+            if (dot) dot.className = 'status-dot error';
+            if (txt) txt.textContent = 'Endpoint down: ' + (err || 'no response');
+            return;
+        }
+        if (txt) txt.textContent = 'Pushing...';
+        _saveInFlight = false; // reset any stuck in-flight
+        syncReady = true;
+        _doCloudSave(function(err2) {
+            if (dot) dot.className = err2 ? 'status-dot error' : 'status-dot ok';
+            if (txt) txt.textContent = err2 ? 'Push failed: ' + err2 : 'Pushed!';
+        });
     });
 }
 
