@@ -3985,6 +3985,11 @@ function mergeCloudData(cloud, isStartup, serverTs) {
 
 document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
+    // One-time costBasis reset for Robinhood import (import ran without setting basis)
+    if (!localStorage.getItem('bloom_rh_basis_v2')) {
+        localStorage.setItem('bloom_rh_needs_basis_reset', '1');
+        localStorage.setItem('bloom_rh_basis_v2', '1');
+    }
     // One-time Robinhood import May 8 2026
     if (!localStorage.getItem('bloom_rh_import_may8')) {
         var d = loadData();
