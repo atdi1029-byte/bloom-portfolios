@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bloom-v68';
+const CACHE_NAME = 'bloom-v69';
 const ASSETS = [
   './',
   './index.html',
