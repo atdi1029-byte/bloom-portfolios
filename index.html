@@ -3958,6 +3958,24 @@ function mergeCloudData(cloud, isStartup, serverTs) {
 
 document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
+    // One-time Robinhood import May 8 2026
+    if (!localStorage.getItem('bloom_rh_import_may8')) {
+        var d = loadData();
+        var sh = {
+            cushion:{JPST:11.34,VTIP:8.29,SPSB:15.66,DGRO:4.45,SCHD:12.93,SGOV:4.05,GLD:0.995906,VOO:0.196414},
+            growth:{VTI:0.488628,SCHG:4.55,VXUS:1.42,AVUV:0.693792,GDX:1.71,SMH:0.075937,VO:1.08,IBIT:2.91,EWZ:1.76},
+            stocks:{MSFT:0.061424,AAPL:0.043311,AMZN:0.03685,META:0.024312,JPM:0.028165,UNH:0.046529,LLY:0.041512,NFLX:0.33005,PG:0.320531}
+        };
+        for (var p in sh) {
+            if (!d.portfolios[p]) d.portfolios[p] = {holdings:{}};
+            for (var t in sh[p]) {
+                if (!d.portfolios[p].holdings[t]) d.portfolios[p].holdings[t] = {shares:0,costBasis:0};
+                d.portfolios[p].holdings[t].shares = sh[p][t];
+            }
+        }
+        saveData(d, true);
+        localStorage.setItem('bloom_rh_import_may8', '1');
+    }
     // One-time fix: stamp lastModified if missing, but ONLY if real holdings exist (not fresh install)
     (function() {
         var d = loadData();
