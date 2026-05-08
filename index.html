@@ -1415,14 +1415,17 @@ function _doCloudSave(onDone) {
     _saveInFlight = true;
     function _finishSave(err) {
         _saveInFlight = false;
+        var dot = document.getElementById('statusDot');
+        var txt = document.getElementById('statusText');
         if (err) {
             console.warn('[Bloom] Cloud save failed:', err);
-            var dot = document.getElementById('statusDot');
-            var txt = document.getElementById('statusText');
             if (dot) dot.className = 'status-dot error';
             if (txt) txt.textContent = 'Save failed — tap Restore';
             var rb = document.getElementById('restoreBtn');
             if (rb) rb.style.display = '';
+        } else {
+            if (dot) dot.className = 'status-dot ok';
+            if (txt) txt.textContent = 'Saved';
         }
         if (_savePending) { _savePending = false; _doCloudSave(); }
         if (onDone) onDone(err);
