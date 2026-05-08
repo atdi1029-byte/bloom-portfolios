@@ -950,6 +950,7 @@
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-green" onclick="forcePushToCloud()">↑ Push</button>
+            <button class="btn btn-red" onclick="resetCostBasisToMarket()">Reset Basis</button>
             <button class="btn" id="restoreBtn" onclick="forceRestoreFromCloud()" style="display:none;">↓ Restore</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
             <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
@@ -1552,6 +1553,21 @@ function loadFromCloud(cb, _attempt) {
             cb(parsed, result.lastSaved || null);
         } else { cb(null, null); }
     });
+}
+
+function resetCostBasisToMarket() {
+    if (!confirm('Reset ALL cost basis to current market value? This cannot be undone.')) return;
+    var data = loadData();
+    for (var pk in data.portfolios) {
+        var holdings = data.portfolios[pk].holdings || {};
+        for (var t in holdings) {
+            var price = getPrice(t);
+            holdings[t].costBasis = holdings[t].shares * price;
+        }
+    }
+    saveData(data, true);
+    renderAll();
+    forcePushToCloud();
 }
 
 function forcePushToCloud() {
