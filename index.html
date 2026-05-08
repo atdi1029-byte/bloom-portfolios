@@ -2760,9 +2760,12 @@ function applyRobinhoodFix() {
 }
 
 // ====== RESET COST BASIS TO CURRENT PRICES ======
-function resetCostBasis() {
+async function resetCostBasis() {
     if (!confirm('Reset cost basis for ALL portfolios to current market prices? P&L will start near 0%.')) return;
+    // Fetch fresh prices first so getPrice() is reliable
+    await refreshPrices();
     const data = loadData();
+    let updated = 0, skipped = 0;
     for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
         const pd = data.portfolios[pKey];
         if (!pd || !pd.holdings) continue;
@@ -2770,13 +2773,19 @@ function resetCostBasis() {
             const h = pd.holdings[ticker];
             if (!h || h.shares <= 0) return;
             const price = getPrice(ticker);
-            if (price <= 0) return;
+            if (price <= 0) { skipped++; return; }
             h.costBasis = h.shares * price;
+            updated++;
         });
     }
     saveData(data, true);
+    forcePushToCloud();
     renderAll();
-    alert('Cost basis reset to current prices across all portfolios.');
+    if (skipped > 0) {
+        alert(`Reset ${updated} holdings. ${skipped} skipped (no price data) — hit Refresh and try again.`);
+    } else {
+        alert(`Cost basis reset to current prices for all ${updated} holdings.`);
+    }
 }
 
 // ====== RECONCILE (FIX SHARES TO MATCH ROBINHOOD) ======
