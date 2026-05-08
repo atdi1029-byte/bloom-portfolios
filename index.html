@@ -1683,6 +1683,25 @@ async function refreshPrices() {
         }
     }
     recordValueSnapshot();
+    // Reset costBasis to market value for Robinhood import if prices weren't cached at import time
+    if (localStorage.getItem('bloom_rh_needs_basis_reset')) {
+        var _rbData = loadData();
+        var _rbSh = {
+            cushion:{JPST:11.34,VTIP:8.29,SPSB:15.66,DGRO:4.45,SCHD:12.93,SGOV:4.05,GLD:0.995906,VOO:0.196414},
+            growth:{VTI:0.488628,SCHG:4.55,VXUS:1.42,AVUV:0.693792,GDX:1.71,SMH:0.075937,VO:1.08,IBIT:2.91,EWZ:1.76},
+            stocks:{MSFT:0.061424,AAPL:0.043311,AMZN:0.03685,META:0.024312,JPM:0.028165,UNH:0.046529,LLY:0.041512,NFLX:0.33005,PG:0.320531}
+        };
+        for (var _rp in _rbSh) {
+            for (var _rt in _rbSh[_rp]) {
+                var _rpr = getPrice(_rt);
+                if (_rpr && _rbData.portfolios[_rp] && _rbData.portfolios[_rp].holdings[_rt]) {
+                    _rbData.portfolios[_rp].holdings[_rt].costBasis = _rbSh[_rp][_rt] * _rpr;
+                }
+            }
+        }
+        saveData(_rbData, true);
+        localStorage.removeItem('bloom_rh_needs_basis_reset');
+    }
     renderAll();
 }
 
@@ -3981,6 +4000,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 d.portfolios[p].holdings[t].shares = sh[p][t];
             }
         }
+        // Set costBasis from cached prices so return starts at $0
+        try {
+            var _pc = JSON.parse(localStorage.getItem('dca_prices_cache') || 'null');
+            if (_pc && _pc.prices) {
+                for (var _pp in sh) {
+                    for (var _tt in sh[_pp]) {
+                        var _pr = _pc.prices[_tt];
+                        if (_pr && _pr.price) d.portfolios[_pp].holdings[_tt].costBasis = sh[_pp][_tt] * _pr.price;
+                    }
+                }
+            } else {
+                localStorage.setItem('bloom_rh_needs_basis_reset', '1');
+            }
+        } catch(_e) { localStorage.setItem('bloom_rh_needs_basis_reset', '1'); }
         saveData(d, true);
         localStorage.setItem('bloom_rh_import_may8', '1');
     }
