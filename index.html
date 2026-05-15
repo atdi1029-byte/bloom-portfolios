@@ -3984,6 +3984,7 @@ function mergeCloudData(cloud, isStartup, serverTs) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
     // One-time costBasis reset for Robinhood import (import ran without setting basis)
     if (!localStorage.getItem('bloom_rh_basis_v2')) {
