@@ -1612,7 +1612,7 @@ function forceRestoreFromCloud() {
 }
 
 function createDefaultData() {
-    const data = { portfolios: {}, history: [], dividendHistory: [], splitterRatios: { ...DEFAULT_RATIOS }, splitterTotal: '' };
+    const data = { portfolios: {}, history: [], dividendHistory: [], splitterRatios: { ...DEFAULT_RATIOS }, splitterTotal: '', migrations: {} };
     for (const [key, pDef] of Object.entries(PORTFOLIOS)) {
         data.portfolios[key] = { holdings: {} };
         for (const ticker of pDef.order) {
@@ -1684,8 +1684,8 @@ async function refreshPrices() {
     }
     recordValueSnapshot();
     // Reset costBasis to market value for Robinhood import if prices weren't cached at import time
-    if (localStorage.getItem('bloom_rh_needs_basis_reset')) {
-        var _rbData = loadData();
+    var _rbData = loadData();
+    if (_rbData.migrations && _rbData.migrations.rh_needs_basis_reset) {
         var _rbSh = {
             cushion:{JPST:11.34,VTIP:8.29,SPSB:15.66,DGRO:4.45,SCHD:12.93,SGOV:4.05,GLD:0.995906,VOO:0.196414},
             growth:{VTI:0.488628,SCHG:4.55,VXUS:1.42,AVUV:0.693792,GDX:1.71,SMH:0.075937,VO:1.08,IBIT:2.91,EWZ:1.76},
@@ -1699,8 +1699,8 @@ async function refreshPrices() {
                 }
             }
         }
+        delete _rbData.migrations.rh_needs_basis_reset;
         saveData(_rbData, true);
-        localStorage.removeItem('bloom_rh_needs_basis_reset');
     }
     renderAll();
 }
@@ -3956,6 +3956,8 @@ function mergeCloudData(cloud, isStartup, serverTs) {
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(-365);
         if (serverTs) restored.lastSyncedAt = serverTs;
+        // Union migrations: if either device completed a migration, mark it done
+        restored.migrations = Object.assign({}, local.migrations || {}, restored.migrations || {});
         // EWZ correction: cloud has wrong share count — fix before saving
         if (restored.portfolios && restored.portfolios.growth &&
             restored.portfolios.growth.holdings && restored.portfolios.growth.holdings.EWZ &&
@@ -3986,14 +3988,38 @@ function mergeCloudData(cloud, isStartup, serverTs) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
+    // Bootstrap: copy existing localStorage migration flags into data.migrations (survives future cache clears)
+    (function() {
+        var _d = loadData();
+        if (!_d.migrations) _d.migrations = {};
+        var _changed = false;
+        var _lsMap = {
+            rh_basis_v2: 'bloom_rh_basis_v2',
+            rh_import_may8: 'bloom_rh_import_may8',
+            rh_fix_apr14_v3: 'bloom_rh_fix_apr14_v3',
+            ewz_176_cloud_ok: 'bloom_ewz_176_cloud_ok'
+        };
+        for (var _k in _lsMap) {
+            if (!_d.migrations[_k] && localStorage.getItem(_lsMap[_k])) {
+                _d.migrations[_k] = true; _changed = true;
+            }
+        }
+        if (_changed) _splitSave(_d);
+    })();
     // One-time costBasis reset for Robinhood import (import ran without setting basis)
-    if (!localStorage.getItem('bloom_rh_basis_v2')) {
-        localStorage.setItem('bloom_rh_needs_basis_reset', '1');
-        localStorage.setItem('bloom_rh_basis_v2', '1');
-    }
+    (function() {
+        var _d = loadData();
+        if (!(_d.migrations && _d.migrations.rh_basis_v2)) {
+            if (!_d.migrations) _d.migrations = {};
+            _d.migrations.rh_needs_basis_reset = true;
+            _d.migrations.rh_basis_v2 = true;
+            _splitSave(_d);
+        }
+    })();
     // One-time Robinhood import May 8 2026
-    if (!localStorage.getItem('bloom_rh_import_may8')) {
+    (function() {
         var d = loadData();
+        if (d.migrations && d.migrations.rh_import_may8) return;
         var sh = {
             cushion:{JPST:11.34,VTIP:8.29,SPSB:15.66,DGRO:4.45,SCHD:12.93,SGOV:4.05,GLD:0.995906,VOO:0.196414},
             growth:{VTI:0.488628,SCHG:4.55,VXUS:1.42,AVUV:0.693792,GDX:1.71,SMH:0.075937,VO:1.08,IBIT:2.91,EWZ:1.76},
@@ -4007,6 +4033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         // Set costBasis from cached prices so return starts at $0
+        if (!d.migrations) d.migrations = {};
         try {
             var _pc = JSON.parse(localStorage.getItem('dca_prices_cache') || 'null');
             if (_pc && _pc.prices) {
@@ -4017,12 +4044,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             } else {
-                localStorage.setItem('bloom_rh_needs_basis_reset', '1');
+                d.migrations.rh_needs_basis_reset = true;
             }
-        } catch(_e) { localStorage.setItem('bloom_rh_needs_basis_reset', '1'); }
+        } catch(_e) { d.migrations.rh_needs_basis_reset = true; }
+        d.migrations.rh_import_may8 = true;
         saveData(d, true);
-        localStorage.setItem('bloom_rh_import_may8', '1');
-    }
+    })();
     // One-time fix: stamp lastModified if missing, but ONLY if real holdings exist (not fresh install)
     (function() {
         var d = loadData();
@@ -4046,24 +4073,31 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFromCloud(function(cloud, serverTs) {
         mergeCloudData(cloud, true, serverTs);
         // Auto-apply Apr 14 2026 Robinhood reconcile (once)
-        if (!localStorage.getItem('bloom_rh_fix_apr14_v3')) {
+        (function() {
+            var _d = loadData();
+            if (_d.migrations && _d.migrations.rh_fix_apr14_v3) return;
             applyRobinhoodFix_auto();
-            localStorage.setItem('bloom_rh_fix_apr14_v3', '1');
-        }
+            var _d2 = loadData();
+            if (!_d2.migrations) _d2.migrations = {};
+            _d2.migrations.rh_fix_apr14_v3 = true;
+            _splitSave(_d2);
+        })();
         syncReady = true;
         // Push local data to cloud on startup (catches cases where cloud was never populated)
         setTimeout(() => { if (hasRealData(loadData())) _doCloudSave(); }, 500);
         // EWZ one-time cloud push — runs once until cloud has correct value
-        if (!localStorage.getItem('bloom_ewz_176_cloud_ok')) {
-            const d = loadData();
-            if (d.portfolios && d.portfolios.growth && d.portfolios.growth.holdings) {
-                if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
-                d.portfolios.growth.holdings.EWZ.shares = 1.76;
-                d.lastModified = Date.now();
-                _splitSave(d);
-                setTimeout(() => { _doCloudSave(); localStorage.setItem('bloom_ewz_176_cloud_ok', '1'); }, 300);
-            }
-        }
+        (function() {
+            var _d = loadData();
+            if (_d.migrations && _d.migrations.ewz_176_cloud_ok) return;
+            if (!(_d.portfolios && _d.portfolios.growth && _d.portfolios.growth.holdings)) return;
+            if (!_d.portfolios.growth.holdings.EWZ) _d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
+            _d.portfolios.growth.holdings.EWZ.shares = 1.76;
+            _d.lastModified = Date.now();
+            if (!_d.migrations) _d.migrations = {};
+            _d.migrations.ewz_176_cloud_ok = true;
+            _splitSave(_d);
+            setTimeout(() => { _doCloudSave(); }, 300);
+        })();
         renderAll();
         refreshPrices();
         fetchMagicFormula();
