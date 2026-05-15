@@ -4082,6 +4082,63 @@ document.addEventListener('DOMContentLoaded', () => {
             _d2.migrations.rh_fix_apr14_v3 = true;
             _splitSave(_d2);
         })();
+        // One-time import: May 15 2026 correct holdings from Robinhood
+        (function() {
+            var _d = loadData();
+            if (_d.migrations && _d.migrations.rh_import_may15) return;
+            var _sh = {
+                cushion: {
+                    JPST:{shares:13.44,price:50.50},
+                    VTIP:{shares:10.02,price:50.37},
+                    SPSB:{shares:15.66,price:29.96},
+                    DGRO:{shares:5.35,price:73.48},
+                    SCHD:{shares:14.61,price:31.73},
+                    SGOV:{shares:4.05,price:100.55},
+                    GLD:{shares:0.995906,price:417.16},
+                    VOO:{shares:0.212453,price:681.81}
+                },
+                growth: {
+                    VTI:{shares:0.709294,price:363.96},
+                    SCHG:{shares:5.56,price:34.40},
+                    VXUS:{shares:1.68,price:83.28},
+                    AVUV:{shares:0.914345,price:117.36},
+                    GDX:{shares:1.71,price:87.23},
+                    SMH:{shares:0.075937,price:561.73},
+                    VO:{shares:1.08,price:76.70},
+                    IBIT:{shares:0.486961,price:44.89},
+                    EWZ:{shares:1.76,price:36.15}
+                },
+                stocks: {
+                    MSFT:{shares:0.061424,price:424.02},
+                    AAPL:{shares:0.043344,price:301.85},
+                    AMZN:{shares:0.03685,price:262.69},
+                    META:{shares:0.024312,price:615.24},
+                    JPM:{shares:0.035184,price:297.98},
+                    UNH:{shares:0.046529,price:393.92},
+                    LLY:{shares:0.041512,price:1000.07},
+                    NFLX:{shares:0.33005,price:87.34},
+                    PG:{shares:0.320531,price:141.89}
+                }
+            };
+            for (var _p in _sh) {
+                if (!_d.portfolios[_p]) _d.portfolios[_p] = {holdings:{}};
+                for (var _t in _sh[_p]) {
+                    var _e = _sh[_p][_t];
+                    _d.portfolios[_p].holdings[_t] = {
+                        shares: _e.shares,
+                        costBasis: _e.shares * _e.price
+                    };
+                }
+            }
+            if (!_d.migrations) _d.migrations = {};
+            _d.migrations.rh_import_may15 = true;
+            _d.migrations.rh_import_may8 = true;
+            _d.migrations.rh_fix_apr14_v3 = true;
+            _d.migrations.rh_basis_v2 = true;
+            _d.migrations.ewz_176_cloud_ok = true;
+            _d.lastModified = Date.now();
+            saveData(_d, true);
+        })();
         syncReady = true;
         // Push local data to cloud on startup (catches cases where cloud was never populated)
         setTimeout(() => { if (hasRealData(loadData())) _doCloudSave(); }, 500);
