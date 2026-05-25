@@ -3996,8 +3996,63 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
+    // May 25 2026 Robinhood reconcile — corrects all holdings to current values
+    (function() {
+        var _d = loadData();
+        if (_d.migrations && _d.migrations.rh_import_may25) return;
+        if (!_d.migrations) _d.migrations = {};
+        var _sh = {
+            cushion: {
+                JPST:{shares:13.44,price:50.53},
+                VTIP:{shares:10.02,price:50.24},
+                SPSB:{shares:15.66,price:30.07},
+                DGRO:{shares:5.35,price:74.84},
+                SCHD:{shares:14.61,price:32.82},
+                SGOV:{shares:4.05,price:100.64},
+                VOO:{shares:0.212453,price:684.10}
+            },
+            growth: {
+                VTI:{shares:0.709294,price:366.43},
+                SCHG:{shares:5.56,price:34.36},
+                VXUS:{shares:1.68,price:84.50},
+                AVUV:{shares:0.914345,price:120.03},
+                GDX:{shares:1.71,price:85.00},
+                SMH:{shares:0.075937,price:574.34},
+                VO:{shares:1.08,price:78.08},
+                IBIT:{shares:0.486961,price:42.75},
+                EWZ:{shares:1.76,price:36.58}
+            },
+            stocks: {
+                MSFT:{shares:0.061424,price:417.80},
+                AAPL:{shares:0.043344,price:308.41},
+                AMZN:{shares:0.03685,price:265.40},
+                META:{shares:0.024312,price:607.32},
+                JPM:{shares:0.035184,price:306.02},
+                UNH:{shares:0.046529,price:387.30},
+                LLY:{shares:0.041579,price:1064.59},
+                NFLX:{shares:0.33005,price:88.39},
+                PG:{shares:0.32296,price:144.36}
+            }
+        };
+        for (var _p in _sh) {
+            if (!_d.portfolios[_p]) _d.portfolios[_p] = {holdings:{}};
+            // Remove GLD if present (no longer held)
+            if (_p === 'cushion' && _d.portfolios[_p].holdings && _d.portfolios[_p].holdings.GLD) {
+                delete _d.portfolios[_p].holdings.GLD;
+            }
+            for (var _t in _sh[_p]) {
+                var _e = _sh[_p][_t];
+                _d.portfolios[_p].holdings[_t] = {
+                    shares: _e.shares,
+                    costBasis: _e.shares * _e.price
+                };
+            }
+        }
+        _d.migrations.rh_import_may25 = true;
+        _d.lastModified = Date.now();
+        _splitSave(_d);
+    })();
     // Force all past migration flags — prevents old migrations from re-running
-    // when _splitSave didn't previously persist the migrations field
     (function() {
         var _d = loadData();
         if (!_d.migrations) _d.migrations = {};
