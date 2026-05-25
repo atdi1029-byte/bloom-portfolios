@@ -3999,7 +3999,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // May 25 2026 Robinhood reconcile — corrects all holdings to current values
     (function() {
         var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_may25) return;
+        if (_d.migrations && _d.migrations.rh_import_may25_v2) return;
         if (!_d.migrations) _d.migrations = {};
         var _sh = {
             cushion: {
@@ -4009,7 +4009,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 DGRO:{shares:5.35,price:74.84},
                 SCHD:{shares:14.61,price:32.82},
                 SGOV:{shares:4.05,price:100.64},
-                VOO:{shares:0.212453,price:684.10}
+                VOO:{shares:0.212453,price:684.10},
+                GLD:{shares:0.995906,price:413.40}
             },
             growth: {
                 VTI:{shares:0.709294,price:366.43},
@@ -4036,10 +4037,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         for (var _p in _sh) {
             if (!_d.portfolios[_p]) _d.portfolios[_p] = {holdings:{}};
-            // Remove GLD if present (no longer held)
-            if (_p === 'cushion' && _d.portfolios[_p].holdings && _d.portfolios[_p].holdings.GLD) {
-                delete _d.portfolios[_p].holdings.GLD;
-            }
             for (var _t in _sh[_p]) {
                 var _e = _sh[_p][_t];
                 _d.portfolios[_p].holdings[_t] = {
@@ -4048,7 +4045,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
         }
-        _d.migrations.rh_import_may25 = true;
+        _d.migrations.rh_import_may25_v2 = true;
         _d.lastModified = Date.now();
         _splitSave(_d);
     })();
