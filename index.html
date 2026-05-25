@@ -1490,12 +1490,11 @@ function syncToCloud(immediate) {
     if (!syncReady) return;
     clearTimeout(_syncDebounce);
     if (immediate) {
-        // Buy actions: push immediately, no merge-before-save
         _doCloudSave();
     } else {
-        _syncDebounce = setTimeout(function() {
-            mergeFromCloud(false, function() { _doCloudSave(); });
-        }, 1500);
+        // Always push directly — merge-before-push was overwriting local edits
+        // when cloud had stale data (push failures on bad WiFi)
+        _syncDebounce = setTimeout(function() { _doCloudSave(); }, 1500);
     }
 }
 
@@ -3925,6 +3924,7 @@ function switchPortfolio() {
 // ====== INIT ======
 function mergeCloudData(cloud, isStartup, serverTs) {
     if (!cloud || !cloud.portfolios) return;
+    if (_lastPushFailed) { console.warn('[Bloom] Skipping cloud merge — last push failed'); return; }
     const local = loadData();
     // Use server-issued lastSaved timestamp for comparison — immune to client clock skew.
     // Fall back to lastModified (client clock) only when no server timestamp is available.
@@ -4077,8 +4077,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start price fetch right away (uses cache if network is slow)
     refreshPrices();
     // Load cloud data in parallel — merge + re-render when done
-    loadFromCloud(function(cloud, serverTs) {
-        mergeCloudData(cloud, true, serverTs);
+    // Try push first — only merge from cloud if push succeeds (proves cloud is current)
+    _doCloudSave(function(pushErr) {
+        if (pushErr) { _lastPushFailed = true; console.warn('[Bloom] Push failed on startup — skipping cloud merge'); return; }
+        loadFromCloud(function(cloud, serverTs) { mergeCloudData(cloud, true, serverTs);
         // Auto-apply Apr 14 2026 Robinhood reconcile (once)
         (function() {
             var _d = loadData();
@@ -4165,6 +4167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAll();
         refreshPrices();
         fetchMagicFormula();
+    });
     });
 });
 
