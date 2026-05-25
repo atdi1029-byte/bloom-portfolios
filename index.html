@@ -1370,15 +1370,16 @@ function jsonpFetch(url, cb) {
     const cbName = '_bloomCb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const script = document.createElement('script');
     let done = false;
+    console.log('[Bloom JSONP] URL length:', url.length, 'action:', (url.match(/action=([^&]+)/) || [])[1]);
     window[cbName] = function(resp) { done = true; delete window[cbName]; script.remove(); cb(null, resp); };
     script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
-    script.onerror = function() { if (!done) { delete window[cbName]; script.remove(); cb('Failed'); } };
-    setTimeout(function() { if (!done) { delete window[cbName]; script.remove(); cb('Timeout'); } }, 30000);
+    script.onerror = function() { if (!done) { done = true; delete window[cbName]; script.remove(); console.warn('[Bloom JSONP] script.onerror fired for', (url.match(/action=([^&]+)/) || [])[1]); cb('Failed'); } };
+    setTimeout(function() { if (!done) { done = true; delete window[cbName]; script.remove(); console.warn('[Bloom JSONP] Timeout for', (url.match(/action=([^&]+)/) || [])[1], 'URL len:', url.length); cb('Timeout'); } }, 45000);
     document.head.appendChild(script);
 }
 
 // JSONP sequential chunked push with inflight guard + retry
-var CHUNK_SIZE = 1800;
+var CHUNK_SIZE = 1200;
 var _MAX_RETRIES = 2;
 function hasRealData(data) {
     // Structural check — not content. createDefaultData() has portfolios
@@ -1413,6 +1414,7 @@ function _doCloudSave(onDone) {
     var json = JSON.stringify(essential);
     var encoded = encodeURIComponent(json);
     _saveInFlight = true;
+    console.log('[Bloom] Save data: JSON=' + json.length + ' encoded=' + encoded.length + ' mode=' + (encoded.length < 7000 ? 'single' : 'chunked(' + Math.ceil(json.length / 1200) + ' chunks)'));
     function _finishSave(err) {
         _saveInFlight = false;
         var dot = document.getElementById('statusDot');
