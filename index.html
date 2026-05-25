@@ -1196,6 +1196,7 @@ const SK_SNAPSHOTS = 'dca_snapshots_v1';
 let syncReady = false;
 let _saveInFlight = false;
 let _savePending = false;
+let _lastPushFailed = false;
 let _syncDebounce = null;
 
 // ====== PORTFOLIO DEFINITIONS ======
@@ -1420,12 +1421,14 @@ function _doCloudSave(onDone) {
         var dot = document.getElementById('statusDot');
         var txt = document.getElementById('statusText');
         if (err) {
+            _lastPushFailed = true;
             console.warn('[Bloom] Cloud save failed:', err);
             if (dot) dot.className = 'status-dot error';
             if (txt) txt.textContent = 'Save failed — tap Restore';
             var rb = document.getElementById('restoreBtn');
             if (rb) rb.style.display = '';
         } else {
+            _lastPushFailed = false;
             if (dot) dot.className = 'status-dot ok';
             if (txt) txt.textContent = 'Saved';
         }
@@ -4167,7 +4170,7 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('visibilitychange', () => {
     if (!syncReady) return;
     if (document.visibilityState === 'visible') {
-        mergeFromCloud(true);
+        if (!_lastPushFailed) mergeFromCloud(true);
     } else {
         clearTimeout(_syncDebounce);
         _doCloudSave();
@@ -4182,9 +4185,9 @@ window.addEventListener('online', () => {
     if (syncReady) setTimeout(() => mergeFromCloud(false, () => _doCloudSave()), 1000);
 });
 
-// 30s periodic poll for cross-device changes
+// 30s periodic poll for cross-device changes (skip if last push failed — cloud is stale)
 setInterval(() => {
-    if (syncReady && document.visibilityState === 'visible') {
+    if (syncReady && document.visibilityState === 'visible' && !_lastPushFailed) {
         mergeFromCloud(false);
     }
 }, 30000);
