@@ -3929,13 +3929,11 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
     if (!cloud || !cloud.portfolios) return;
     if (_lastPushFailed && !forceRestore) { console.warn('[Bloom] Skipping cloud merge — last push failed'); return; }
     const local = loadData();
-    // Use server-issued lastSaved timestamp for comparison — immune to client clock skew.
-    // Fall back to lastModified (client clock) only when no server timestamp is available.
     const localMod = local.lastModified || 0;
     const localSync = local.lastSyncedAt ? new Date(local.lastSyncedAt).getTime() : 0;
     const localCmp = Math.max(localMod, localSync);
     const cloudCmp = serverTs ? new Date(serverTs).getTime() : (cloud.lastModified || 0);
-    if (cloudCmp > localCmp) {
+    if (forceRestore || cloudCmp > localCmp) {
         const restored = Object.assign(createDefaultData(), cloud);
         if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
             restored.history = local.history;
