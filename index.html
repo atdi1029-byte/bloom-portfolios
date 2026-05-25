@@ -3927,7 +3927,7 @@ function mergeCloudData(cloud, isStartup, serverTs) {
     // Fall back to lastModified (client clock) only when no server timestamp is available.
     const localCmp = local.lastSyncedAt ? new Date(local.lastSyncedAt).getTime() : (local.lastModified || 0);
     const cloudCmp = serverTs ? new Date(serverTs).getTime() : (cloud.lastModified || 0);
-    if (isStartup ? (cloudCmp >= localCmp || !local.lastModified) : (cloudCmp > localCmp)) {
+    if (isStartup ? (cloudCmp > localCmp || !local.lastModified) : (cloudCmp > localCmp)) {
         const restored = Object.assign(createDefaultData(), cloud);
         if ((!restored.history || restored.history.length === 0) && local.history && local.history.length > 0) {
             restored.history = local.history;
