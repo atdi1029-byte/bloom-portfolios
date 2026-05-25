@@ -1305,7 +1305,8 @@ function _splitSave(data) {
         splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
         splitterTotal: data.splitterTotal || '',
         lastModified: data.lastModified,
-        lastSyncedAt: data.lastSyncedAt
+        lastSyncedAt: data.lastSyncedAt,
+        migrations: data.migrations || {}
     };
     var coreOk = safeLocalSave(SK_CORE, JSON.stringify(core));
     safeLocalSave(SK_HISTORY, JSON.stringify(data.history || []));
