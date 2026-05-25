@@ -3996,22 +3996,15 @@ function mergeCloudData(cloud, isStartup, serverTs) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
-    // Bootstrap: copy existing localStorage migration flags into data.migrations (survives future cache clears)
+    // Force all past migration flags — prevents old migrations from re-running
+    // when _splitSave didn't previously persist the migrations field
     (function() {
         var _d = loadData();
         if (!_d.migrations) _d.migrations = {};
+        var _allDone = ['rh_basis_v2','rh_import_may8','rh_fix_apr14_v3',
+            'rh_import_may15','ewz_176_cloud_ok','rh_needs_basis_reset'];
         var _changed = false;
-        var _lsMap = {
-            rh_basis_v2: 'bloom_rh_basis_v2',
-            rh_import_may8: 'bloom_rh_import_may8',
-            rh_fix_apr14_v3: 'bloom_rh_fix_apr14_v3',
-            ewz_176_cloud_ok: 'bloom_ewz_176_cloud_ok'
-        };
-        for (var _k in _lsMap) {
-            if (!_d.migrations[_k] && localStorage.getItem(_lsMap[_k])) {
-                _d.migrations[_k] = true; _changed = true;
-            }
-        }
+        _allDone.forEach(function(m) { if (!_d.migrations[m]) { _d.migrations[m] = true; _changed = true; } });
         if (_changed) _splitSave(_d);
     })();
     // One-time costBasis reset for Robinhood import (import ran without setting basis)
@@ -4074,6 +4067,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
     // Render from localStorage immediately — don't wait for cloud
+    syncReady = true;
     renderAll();
     // Start price fetch right away (uses cache if network is slow)
     refreshPrices();
@@ -4149,7 +4143,6 @@ document.addEventListener('DOMContentLoaded', () => {
             _d.lastModified = Date.now();
             saveData(_d, true);
         })();
-        syncReady = true;
         // Push local data to cloud on startup (catches cases where cloud was never populated)
         setTimeout(() => { if (hasRealData(loadData())) _doCloudSave(); }, 500);
         // EWZ one-time cloud push — runs once until cloud has correct value
