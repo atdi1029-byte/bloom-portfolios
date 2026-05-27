@@ -3948,10 +3948,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
     // Single consolidated migration — May 25 2026 Robinhood reconcile
-    // All older migrations (May 8, May 15, Apr 14, EWZ, basis reset) removed
+    // v3: force re-run to fix cloud data corrupted by May 15 race condition
     (function() {
         var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_may25_v2) return;
+        if (_d.migrations && _d.migrations.rh_import_may25_v3) return;
         if (!_d.migrations) _d.migrations = {};
         var _sh = {
             cushion: {
@@ -3998,6 +3998,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         // Stamp ALL migration flags so nothing ever re-runs
+        _d.migrations.rh_import_may25_v3 = true;
         _d.migrations.rh_import_may25_v2 = true;
         _d.migrations.rh_basis_v2 = true;
         _d.migrations.rh_import_may8 = true;
