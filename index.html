@@ -2679,7 +2679,6 @@ function saveHoldings() {
 
 // ====== ONE-TIME FIX: SET SHARES TO MATCH ROBINHOOD (Apr 14 2026) ======
 // applyRobinhoodFix_auto removed — all migrations consolidated into single May 25 block
-}
 function applyRobinhoodFix() {
     if (!confirm('This will set all share counts to match your Robinhood account (Apr 14 2026). Cost basis stays the same. Continue?')) return;
     const RH = {
