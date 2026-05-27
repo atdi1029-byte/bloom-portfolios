@@ -3950,7 +3950,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // v4: correct all share counts to match current Robinhood holdings
     (function() {
         var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_may26_v4) return;
+        if (_d.migrations && _d.migrations.rh_import_may26_v5) return;
         if (!_d.migrations) _d.migrations = {};
         var _sh = {
             cushion: {
@@ -3998,6 +3998,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         // Stamp ALL migration flags so nothing ever re-runs
+        _d.migrations.rh_import_may26_v5 = true;
         _d.migrations.rh_import_may26_v4 = true;
         _d.migrations.rh_import_may25_v3 = true;
         _d.migrations.rh_import_may25_v2 = true;
