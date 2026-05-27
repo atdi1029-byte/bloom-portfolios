@@ -2678,56 +2678,7 @@ function saveHoldings() {
 }
 
 // ====== ONE-TIME FIX: SET SHARES TO MATCH ROBINHOOD (Apr 14 2026) ======
-function applyRobinhoodFix_auto() {
-    // Silent auto-apply version — runs once on next load
-    const RH_AUTO = {
-        JPST: 4.32, SPSB: 6.55, DGRO: 2.59, SCHD: 5.09,
-        SGOV: 1.30, VOO: 0.278079, VTIP: 2.72, GLD: 0.292509,
-        VTI: 0.220845, SCHG: 2.67, VXUS: 0.679315, AVUV: 0.475224,
-        GDX: 0.510193, SMH: 0.071544, VO: 0.162544, IBIT: 1.49,
-        JPM: 0.028038, AMZN: 0.03685, META: 0.010528, UNH: 0.046529,
-        MSFT: 0.050286, NFLX: 0.094327, AAPL: 0.043311, LLY: 0.002511,
-        PG: 0.092864
-    };
-    const data = loadData();
-    const allTickers = new Set();
-    for (const pDef of Object.values(PORTFOLIOS)) pDef.order.forEach(t => allTickers.add(t));
-    allTickers.forEach(ticker => {
-        const rhShares = RH_AUTO[ticker] || 0;
-        let bloomTotal = 0;
-        const portHoldings = [];
-        for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
-            if (!pDef.order.includes(ticker)) continue;
-            const pd = data.portfolios[pKey];
-            if (!pd || !pd.holdings || !pd.holdings[ticker]) continue;
-            bloomTotal += pd.holdings[ticker].shares;
-            portHoldings.push({ key: pKey, holdings: pd.holdings[ticker] });
-        }
-        if (bloomTotal === 0 && rhShares === 0) return;
-        if (bloomTotal === 0 && rhShares > 0) {
-            for (const [pKey, pDef] of Object.entries(PORTFOLIOS)) {
-                if (pDef.order.includes(ticker)) {
-                    if (!data.portfolios[pKey]) data.portfolios[pKey] = { holdings: {} };
-                    if (!data.portfolios[pKey].holdings[ticker]) data.portfolios[pKey].holdings[ticker] = { shares: 0, costBasis: 0 };
-                    data.portfolios[pKey].holdings[ticker].shares = rhShares;
-                    break;
-                }
-            }
-            return;
-        }
-        if (rhShares === 0) { portHoldings.forEach(ph => { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }); return; }
-        const ratio = rhShares / bloomTotal;
-        portHoldings.forEach(ph => {
-            ph.holdings.shares = ph.holdings.shares * ratio;
-            if (ph.holdings.shares < 0.0001) { ph.holdings.shares = 0; ph.holdings.costBasis = 0; }
-        });
-    });
-    // Clear old snapshots and history so growth chart starts fresh with correct data
-    // Old history is unreliable due to sync bug that lost buy entries
-    data.valueSnapshots = [];
-    data.history = [];
-    data.dividendHistory = [];
-    saveData(data, true);
+// applyRobinhoodFix_auto removed — all migrations consolidated into single May 25 block
 }
 function applyRobinhoodFix() {
     if (!confirm('This will set all share counts to match your Robinhood account (Apr 14 2026). Cost basis stays the same. Continue?')) return;
@@ -3996,7 +3947,8 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
-    // May 25 2026 Robinhood reconcile — corrects all holdings to current values
+    // Single consolidated migration — May 25 2026 Robinhood reconcile
+    // All older migrations (May 8, May 15, Apr 14, EWZ, basis reset) removed
     (function() {
         var _d = loadData();
         if (_d.migrations && _d.migrations.rh_import_may25_v2) return;
@@ -4045,65 +3997,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
         }
+        // Stamp ALL migration flags so nothing ever re-runs
         _d.migrations.rh_import_may25_v2 = true;
+        _d.migrations.rh_basis_v2 = true;
+        _d.migrations.rh_import_may8 = true;
+        _d.migrations.rh_fix_apr14_v3 = true;
+        _d.migrations.rh_import_may15 = true;
+        _d.migrations.ewz_176_cloud_ok = true;
+        _d.migrations.rh_needs_basis_reset = true;
         _d.lastModified = Date.now();
-        _splitSave(_d);
+        saveData(_d, true);
     })();
-    // Force all past migration flags — prevents old migrations from re-running
-    (function() {
-        var _d = loadData();
-        if (!_d.migrations) _d.migrations = {};
-        var _allDone = ['rh_basis_v2','rh_import_may8','rh_fix_apr14_v3',
-            'rh_import_may15','ewz_176_cloud_ok','rh_needs_basis_reset'];
-        var _changed = false;
-        _allDone.forEach(function(m) { if (!_d.migrations[m]) { _d.migrations[m] = true; _changed = true; } });
-        if (_changed) _splitSave(_d);
-    })();
-    // One-time costBasis reset for Robinhood import (import ran without setting basis)
-    (function() {
-        var _d = loadData();
-        if (!(_d.migrations && _d.migrations.rh_basis_v2)) {
-            if (!_d.migrations) _d.migrations = {};
-            _d.migrations.rh_needs_basis_reset = true;
-            _d.migrations.rh_basis_v2 = true;
-            _splitSave(_d);
-        }
-    })();
-    // One-time Robinhood import May 8 2026
-    (function() {
-        var d = loadData();
-        if (d.migrations && d.migrations.rh_import_may8) return;
-        var sh = {
-            cushion:{JPST:11.34,VTIP:8.29,SPSB:15.66,DGRO:4.45,SCHD:12.93,SGOV:4.05,GLD:0.995906,VOO:0.196414},
-            growth:{VTI:0.488628,SCHG:4.55,VXUS:1.42,AVUV:0.693792,GDX:1.71,SMH:0.075937,VO:1.08,IBIT:2.91,EWZ:1.76},
-            stocks:{MSFT:0.061424,AAPL:0.043311,AMZN:0.03685,META:0.024312,JPM:0.028165,UNH:0.046529,LLY:0.041512,NFLX:0.33005,PG:0.320531}
-        };
-        for (var p in sh) {
-            if (!d.portfolios[p]) d.portfolios[p] = {holdings:{}};
-            for (var t in sh[p]) {
-                if (!d.portfolios[p].holdings[t]) d.portfolios[p].holdings[t] = {shares:0,costBasis:0};
-                d.portfolios[p].holdings[t].shares = sh[p][t];
-            }
-        }
-        // Set costBasis from cached prices so return starts at $0
-        if (!d.migrations) d.migrations = {};
-        try {
-            var _pc = JSON.parse(localStorage.getItem('dca_prices_cache') || 'null');
-            if (_pc && _pc.prices) {
-                for (var _pp in sh) {
-                    for (var _tt in sh[_pp]) {
-                        var _pr = _pc.prices[_tt];
-                        if (_pr && _pr.price) d.portfolios[_pp].holdings[_tt].costBasis = sh[_pp][_tt] * _pr.price;
-                    }
-                }
-            } else {
-                d.migrations.rh_needs_basis_reset = true;
-            }
-        } catch(_e) { d.migrations.rh_needs_basis_reset = true; }
-        d.migrations.rh_import_may8 = true;
-        saveData(d, true);
-    })();
-    // One-time fix: stamp lastModified if missing, but ONLY if real holdings exist (not fresh install)
+    // Stamp lastModified if missing on existing data
     (function() {
         var d = loadData();
         if (d.portfolios && !d.lastModified) {
@@ -4127,93 +4032,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Try push first — only merge from cloud if push succeeds (proves cloud is current)
     _doCloudSave(function(pushErr) {
         if (pushErr) { _lastPushFailed = true; console.warn('[Bloom] Push failed on startup — skipping cloud merge'); return; }
-        loadFromCloud(function(cloud, serverTs) { mergeCloudData(cloud, true, serverTs);
-        // Auto-apply Apr 14 2026 Robinhood reconcile (once)
-        (function() {
-            var _d = loadData();
-            if (_d.migrations && _d.migrations.rh_fix_apr14_v3) return;
-            applyRobinhoodFix_auto();
-            var _d2 = loadData();
-            if (!_d2.migrations) _d2.migrations = {};
-            _d2.migrations.rh_fix_apr14_v3 = true;
-            _splitSave(_d2);
-        })();
-        // One-time import: May 15 2026 correct holdings from Robinhood
-        (function() {
-            var _d = loadData();
-            if (_d.migrations && _d.migrations.rh_import_may15) return;
-            var _sh = {
-                cushion: {
-                    JPST:{shares:13.44,price:50.50},
-                    VTIP:{shares:10.02,price:50.37},
-                    SPSB:{shares:15.66,price:29.96},
-                    DGRO:{shares:5.35,price:73.48},
-                    SCHD:{shares:14.61,price:31.73},
-                    SGOV:{shares:4.05,price:100.55},
-                    GLD:{shares:0.995906,price:417.16},
-                    VOO:{shares:0.212453,price:681.81}
-                },
-                growth: {
-                    VTI:{shares:0.709294,price:363.96},
-                    SCHG:{shares:5.56,price:34.40},
-                    VXUS:{shares:1.68,price:83.28},
-                    AVUV:{shares:0.914345,price:117.36},
-                    GDX:{shares:1.71,price:87.23},
-                    SMH:{shares:0.075937,price:561.73},
-                    VO:{shares:1.08,price:76.70},
-                    IBIT:{shares:0.486961,price:44.89},
-                    EWZ:{shares:1.76,price:36.15}
-                },
-                stocks: {
-                    MSFT:{shares:0.061424,price:424.02},
-                    AAPL:{shares:0.043344,price:301.85},
-                    AMZN:{shares:0.03685,price:262.69},
-                    META:{shares:0.024312,price:615.24},
-                    JPM:{shares:0.035184,price:297.98},
-                    UNH:{shares:0.046529,price:393.92},
-                    LLY:{shares:0.041512,price:1000.07},
-                    NFLX:{shares:0.33005,price:87.34},
-                    PG:{shares:0.320531,price:141.89}
-                }
-            };
-            for (var _p in _sh) {
-                if (!_d.portfolios[_p]) _d.portfolios[_p] = {holdings:{}};
-                for (var _t in _sh[_p]) {
-                    var _e = _sh[_p][_t];
-                    _d.portfolios[_p].holdings[_t] = {
-                        shares: _e.shares,
-                        costBasis: _e.shares * _e.price
-                    };
-                }
-            }
-            if (!_d.migrations) _d.migrations = {};
-            _d.migrations.rh_import_may15 = true;
-            _d.migrations.rh_import_may8 = true;
-            _d.migrations.rh_fix_apr14_v3 = true;
-            _d.migrations.rh_basis_v2 = true;
-            _d.migrations.ewz_176_cloud_ok = true;
-            _d.lastModified = Date.now();
-            saveData(_d, true);
-        })();
-        // Push local data to cloud on startup (catches cases where cloud was never populated)
-        setTimeout(() => { if (hasRealData(loadData())) _doCloudSave(); }, 500);
-        // EWZ one-time cloud push — runs once until cloud has correct value
-        (function() {
-            var _d = loadData();
-            if (_d.migrations && _d.migrations.ewz_176_cloud_ok) return;
-            if (!(_d.portfolios && _d.portfolios.growth && _d.portfolios.growth.holdings)) return;
-            if (!_d.portfolios.growth.holdings.EWZ) _d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
-            _d.portfolios.growth.holdings.EWZ.shares = 1.76;
-            _d.lastModified = Date.now();
-            if (!_d.migrations) _d.migrations = {};
-            _d.migrations.ewz_176_cloud_ok = true;
-            _splitSave(_d);
-            setTimeout(() => { _doCloudSave(); }, 300);
-        })();
-        renderAll();
-        refreshPrices();
-        fetchMagicFormula();
-    });
+        loadFromCloud(function(cloud, serverTs) {
+            mergeCloudData(cloud, true, serverTs);
+            renderAll();
+            refreshPrices();
+            fetchMagicFormula();
+        });
     });
 });
 
