@@ -3946,44 +3946,44 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
-    // Single consolidated migration — May 25 2026 Robinhood reconcile
-    // v3: force re-run to fix cloud data corrupted by May 15 race condition
+    // Consolidated migration — May 26 2026 Robinhood reconcile (from live screenshots)
+    // v4: correct all share counts to match current Robinhood holdings
     (function() {
         var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_may25_v3) return;
+        if (_d.migrations && _d.migrations.rh_import_may26_v4) return;
         if (!_d.migrations) _d.migrations = {};
         var _sh = {
             cushion: {
-                JPST:{shares:13.44,price:50.53},
-                VTIP:{shares:10.02,price:50.24},
-                SPSB:{shares:15.66,price:30.07},
-                DGRO:{shares:5.35,price:74.84},
-                SCHD:{shares:14.61,price:32.82},
+                JPST:{shares:17.24,price:50.55},
+                VTIP:{shares:13.27,price:50.32},
+                SPSB:{shares:15.66,price:30.02},
+                DGRO:{shares:5.67,price:74.75},
+                SCHD:{shares:15.34,price:32.71},
                 SGOV:{shares:4.05,price:100.64},
-                VOO:{shares:0.212453,price:684.10},
-                GLD:{shares:0.995906,price:413.40}
+                VOO:{shares:0.2538,price:690.71},
+                GLD:{shares:0.995906,price:413.45}
             },
             growth: {
-                VTI:{shares:0.709294,price:366.43},
-                SCHG:{shares:5.56,price:34.36},
-                VXUS:{shares:1.68,price:84.50},
-                AVUV:{shares:0.914345,price:120.03},
-                GDX:{shares:1.71,price:85.00},
-                SMH:{shares:0.075937,price:574.34},
-                VO:{shares:1.08,price:78.08},
-                IBIT:{shares:0.486961,price:42.75},
-                EWZ:{shares:1.76,price:36.58}
+                VTI:{shares:0.750084,price:370.04},
+                SCHG:{shares:5.86,price:34.55},
+                VXUS:{shares:2.00,price:86.50},
+                AVUV:{shares:1.09,price:121.34},
+                GDX:{shares:1.71,price:88.47},
+                SMH:{shares:0.075937,price:607.52},
+                VO:{shares:1.08,price:78.55},
+                IBIT:{shares:2.33,price:42.87},
+                EWZ:{shares:1.76,price:36.47}
             },
             stocks: {
-                MSFT:{shares:0.061424,price:417.80},
-                AAPL:{shares:0.043344,price:308.41},
-                AMZN:{shares:0.03685,price:265.40},
-                META:{shares:0.024312,price:607.32},
-                JPM:{shares:0.035184,price:306.02},
-                UNH:{shares:0.046529,price:387.30},
-                LLY:{shares:0.041579,price:1064.59},
-                NFLX:{shares:0.33005,price:88.39},
-                PG:{shares:0.32296,price:144.36}
+                MSFT:{shares:0.065337,price:414.16},
+                AAPL:{shares:0.043344,price:308.42},
+                AMZN:{shares:0.03685,price:264.92},
+                META:{shares:0.028679,price:609.45},
+                JPM:{shares:0.035184,price:306.51},
+                UNH:{shares:0.046529,price:376.32},
+                LLY:{shares:0.041579,price:1060.20},
+                NFLX:{shares:0.348472,price:87.32},
+                PG:{shares:0.32296,price:143.00}
             }
         };
         for (var _p in _sh) {
@@ -3997,6 +3997,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         // Stamp ALL migration flags so nothing ever re-runs
+        _d.migrations.rh_import_may26_v4 = true;
         _d.migrations.rh_import_may25_v3 = true;
         _d.migrations.rh_import_may25_v2 = true;
         _d.migrations.rh_basis_v2 = true;
