@@ -4031,16 +4031,17 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
     // Start price fetch right away (uses cache if network is slow)
     refreshPrices();
-    // Load cloud data in parallel — merge + re-render when done
-    // Try push first — only merge from cloud if push succeeds (proves cloud is current)
-    _doCloudSave(function(pushErr) {
-        if (pushErr) { _lastPushFailed = true; console.warn('[Bloom] Push failed on startup — skipping cloud merge'); return; }
-        loadFromCloud(function(cloud, serverTs) {
+    // PULL cloud first, merge, then push — prevents stale/empty local
+    // from overwriting good cloud data (Android evicts PWA storage)
+    loadFromCloud(function(cloud, serverTs) {
+        if (cloud && cloud.portfolios) {
             mergeCloudData(cloud, true, serverTs);
             renderAll();
-            refreshPrices();
-            fetchMagicFormula();
-        });
+        }
+        refreshPrices();
+        fetchMagicFormula();
+        // Now push merged state back to cloud
+        _doCloudSave();
     });
 });
 
