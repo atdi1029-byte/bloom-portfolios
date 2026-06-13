@@ -2418,16 +2418,18 @@ async function previewDCA() {
             return;
         }
     }
+    // Use post-buy total for gap calc so large buys correctly include all ETFs
+    const postBuyTotal = totalVal + effectiveAmount;
     const etfScores = [];
     pDef.order.forEach(ticker => {
         const target = pDef.targets[ticker];
         const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
         const value = h.shares * getPrice(ticker);
-        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const currentPct = postBuyTotal > 0 ? (value / postBuyTotal * 100) : 0;
         const rawGap = (target.pct - currentPct) / 100;
         const gapScore = Math.max(0, rawGap);
         const valScore = calcValuationScore(ticker);
-        const composite = Math.max(0, rawGap * 0.55 + valScore * 0.45);
+        const composite = rawGap <= 0 ? 0 : Math.max(0, rawGap * 0.55 + valScore * 0.45);
         etfScores.push({ ticker, gapScore, rawGap, valScore, composite, currentPct, targetPct: target.pct, aboveTarget: currentPct >= target.pct + 10 });
     });
     const eligible = etfScores.filter(e => !e.aboveTarget);
@@ -3627,11 +3629,13 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const cap = pDef.hardCap;
     let effectiveAmount = investAmount;
     if (cap > 0) { effectiveAmount = Math.min(investAmount, Math.max(0, cap - totalVal)); if (effectiveAmount <= 0) return { portfolioKey, capped: true, allocations: [], totalAmount: 0 }; }
+    // Use post-buy total for gap calc so large buys correctly include all ETFs
+    const postBuyTotal = totalVal + effectiveAmount;
     const etfScores = [];
     tickers.forEach(ticker => {
         const target = pDef.targets[ticker];
         const value = (pd.holdings[ticker] || { shares: 0 }).shares * getPrice(ticker);
-        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
+        const currentPct = postBuyTotal > 0 ? (value / postBuyTotal * 100) : 0;
         const gapScore = (target.pct - currentPct) / 100;
         const composite = gapScore <= 0 ? 0 : Math.max(0, gapScore * 0.55 + calcValuationScore(ticker) * 0.45);
         etfScores.push({ ticker, composite, aboveTarget: currentPct >= target.pct + 10 });
@@ -3946,45 +3950,48 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
+    // Detect cache-wipe: if SK_CORE doesn't exist, localStorage was cleared
+    var _bloomFreshInstall = !localStorage.getItem(SK_CORE);
     // Consolidated migration — May 26 2026 Robinhood reconcile (from live screenshots)
     // v4: correct all share counts to match current Robinhood holdings
     (function() {
         var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_may26_v5) return;
+        if (_d.migrations && _d.migrations.rh_import_jun12_v6) return;
         if (!_d.migrations) _d.migrations = {};
         var _sh = {
             cushion: {
-                JPST:{shares:17.24,price:50.55},
-                VTIP:{shares:13.27,price:50.32},
-                SPSB:{shares:15.66,price:30.02},
-                DGRO:{shares:5.67,price:74.75},
-                SCHD:{shares:14.87,price:32.71},
-                SGOV:{shares:4.05,price:100.64},
-                VOO:{shares:0.2538,price:690.71},
-                GLD:{shares:0.995906,price:413.45}
+                JPST:{shares:23.36,price:50.50},
+                VTIP:{shares:22.26,price:50.46},
+                SPSB:{shares:32.40,price:29.98},
+                DGRO:{shares:10.56,price:76.00},
+                SCHD:{shares:30.95,price:32.86},
+                SGOV:{shares:6.93,price:100.53},
+                VOO:{shares:0.732105,price:682.79},
+                GLD:{shares:1.54,price:387.58}
             },
             growth: {
-                VTI:{shares:0.750084,price:370.04},
-                SCHG:{shares:5.86,price:34.55},
-                VXUS:{shares:2.00,price:86.50},
-                AVUV:{shares:1.09,price:121.34},
-                SCHD:{shares:0.47,price:32.71},
-                GDX:{shares:1.71,price:88.47},
-                SMH:{shares:0.075937,price:607.52},
-                VO:{shares:1.08,price:78.55},
-                IBIT:{shares:2.33,price:42.87},
-                EWZ:{shares:1.76,price:36.47}
+                VTI:{shares:1.42,price:366.97},
+                SCHG:{shares:13.68,price:33.55},
+                VXUS:{shares:4.17,price:85.94},
+                AVUV:{shares:2.21,price:124.96},
+                SCHD:{shares:0.99,price:32.86},
+                GDX:{shares:1.71,price:80.26},
+                SMH:{shares:0.230825,price:621.84},
+                VO:{shares:1.08,price:80.26},
+                IBIT:{shares:2.33,price:35.98},
+                EWZ:{shares:1.76,price:35.10}
             },
             stocks: {
-                MSFT:{shares:0.065337,price:414.16},
-                AAPL:{shares:0.043344,price:308.42},
-                AMZN:{shares:0.03685,price:264.92},
-                META:{shares:0.028679,price:609.45},
-                JPM:{shares:0.035184,price:306.51},
-                UNH:{shares:0.046529,price:376.32},
-                LLY:{shares:0.041579,price:1060.20},
-                NFLX:{shares:0.348472,price:87.32},
-                PG:{shares:0.32296,price:143.00}
+                MSFT:{shares:0.069147,price:390.70},
+                AAPL:{shares:0.043344,price:291.52},
+                AMZN:{shares:0.072647,price:238.70},
+                META:{shares:0.045577,price:569.01},
+                JPM:{shares:0.039305,price:320.84},
+                UNH:{shares:0.046529,price:408.78},
+                LLY:{shares:0.041579,price:1134.00},
+                NFLX:{shares:0.367164,price:80.37},
+                PG:{shares:0.32296,price:149.73},
+                COST:{shares:0.015838,price:981.51}
             }
         };
         for (var _p in _sh) {
@@ -3998,6 +4005,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         // Stamp ALL migration flags so nothing ever re-runs
+        _d.migrations.rh_import_jun12_v6 = true;
         _d.migrations.rh_import_may26_v5 = true;
         _d.migrations.rh_import_may26_v4 = true;
         _d.migrations.rh_import_may25_v3 = true;
@@ -4008,8 +4016,14 @@ document.addEventListener('DOMContentLoaded', () => {
         _d.migrations.rh_import_may15 = true;
         _d.migrations.ewz_176_cloud_ok = true;
         _d.migrations.rh_needs_basis_reset = true;
-        _d.lastModified = Date.now();
-        saveData(_d, true);
+        if (_bloomFreshInstall) {
+            // Cache was wiped — use _splitSave (no cloud push) and DON'T stamp
+            // lastModified so cloud data wins the timestamp comparison on merge
+            _splitSave(_d);
+        } else {
+            _d.lastModified = Date.now();
+            saveData(_d, true);
+        }
     })();
     // Stamp lastModified if missing on existing data
     (function() {
@@ -4035,13 +4049,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // from overwriting good cloud data (Android evicts PWA storage)
     loadFromCloud(function(cloud, serverTs) {
         if (cloud && cloud.portfolios) {
-            mergeCloudData(cloud, true, serverTs);
+            mergeCloudData(cloud, true, serverTs, _bloomFreshInstall);
             renderAll();
         }
         refreshPrices();
         fetchMagicFormula();
-        // Now push merged state back to cloud
-        _doCloudSave();
+        // Now push merged state back to cloud (only if not a fresh install with no real data)
+        if (!_bloomFreshInstall || (cloud && cloud.portfolios)) _doCloudSave();
     });
 });
 
