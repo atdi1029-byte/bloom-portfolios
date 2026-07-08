@@ -2528,9 +2528,10 @@ function openDivModal(ticker) {
         const other = pick === 'SCHD' ? 'VOO' : 'SCHD';
         const pickGap = pick === 'SCHD' ? schdGap : vooGap;
         const otherGap = pick === 'SCHD' ? vooGap : schdGap;
+        const fmtGap = (g) => g >= 0 ? g.toFixed(1) + '% under target' : Math.abs(g).toFixed(1) + '% over target';
         infoEl.innerHTML = '→ Reinvesting into <strong>' + pick + '</strong><br>' +
-            pick + ': ' + pickGap.toFixed(1) + '% under target · ' +
-            other + ': ' + otherGap.toFixed(1) + '% under target';
+            pick + ': ' + fmtGap(pickGap) + ' · ' +
+            other + ': ' + fmtGap(otherGap);
         infoEl.style.display = 'block';
     } else {
         infoEl.style.display = 'none';
