@@ -3071,7 +3071,8 @@ function executeAllDriftAlerts() {
         a.buyAllocs.forEach(b => { msg += `  BUY ${b.ticker} ${fmt(b.amount)} (${b.shares.toFixed(2)} shares)\n`; });
         msg += '\n';
     });
-    if (!confirm(msg)) return;
+    const typed = prompt(msg + 'Type REBALANCE to confirm:');
+    if (!typed || typed.trim().toUpperCase() !== 'REBALANCE') return;
     const data = loadData();
     const pd = data.portfolios[currentPortfolio];
     actionable.forEach(a => {
