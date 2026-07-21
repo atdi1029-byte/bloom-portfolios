@@ -3962,46 +3962,46 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
     // Detect cache-wipe: if SK_CORE doesn't exist, localStorage was cleared
     var _bloomFreshInstall = !localStorage.getItem(SK_CORE);
-    // Consolidated migration — May 26 2026 Robinhood reconcile (from live screenshots)
-    // v4: correct all share counts to match current Robinhood holdings
+    // Consolidated migration — Jul 21 2026 Robinhood reconcile (from live screenshots)
+    // v7: correct all share counts, zero out sold positions (META/JPM/UNH/LLY)
     (function() {
         var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_jun12_v6) return;
+        if (_d.migrations && _d.migrations.rh_import_jul21_v7) return;
         if (!_d.migrations) _d.migrations = {};
         var _sh = {
             cushion: {
-                JPST:{shares:23.36,price:50.50},
-                VTIP:{shares:22.26,price:50.46},
-                SPSB:{shares:32.40,price:29.98},
-                DGRO:{shares:10.56,price:76.00},
-                SCHD:{shares:30.95,price:32.86},
-                SGOV:{shares:6.93,price:100.53},
-                VOO:{shares:0.732105,price:682.79},
-                GLD:{shares:1.54,price:387.58}
+                JPST:{shares:28.12,price:50.50},
+                VTIP:{shares:27.87,price:49.65},
+                SPSB:{shares:34.10,price:29.91},
+                DGRO:{shares:11.52,price:76.84},
+                SCHD:{shares:35.38,price:32.81},
+                SGOV:{shares:7.50,price:100.60},
+                VOO:{shares:0.804613,price:687.99},
+                GLD:{shares:1.90,price:374.70}
             },
             growth: {
-                VTI:{shares:1.42,price:366.97},
-                SCHG:{shares:13.68,price:33.55},
-                VXUS:{shares:4.17,price:85.94},
-                AVUV:{shares:2.21,price:124.96},
-                SCHD:{shares:0.99,price:32.86},
-                GDX:{shares:1.71,price:80.26},
-                SMH:{shares:0.230825,price:621.84},
-                VO:{shares:1.08,price:80.26},
-                IBIT:{shares:2.33,price:35.98},
-                EWZ:{shares:1.76,price:35.10}
+                VTI:{shares:1.77,price:369.55},
+                SCHG:{shares:14.64,price:34.28},
+                VXUS:{shares:4.65,price:84.43},
+                AVUV:{shares:2.45,price:126.00},
+                SCHD:{shares:1.09,price:32.81},
+                GDX:{shares:1.71,price:73.97},
+                SMH:{shares:0.230825,price:583.93},
+                VO:{shares:1.08,price:80.49},
+                IBIT:{shares:2.33,price:37.64},
+                EWZ:{shares:1.78,price:35.63}
             },
             stocks: {
-                MSFT:{shares:0.069147,price:390.70},
-                AAPL:{shares:0.043344,price:291.52},
-                AMZN:{shares:0.072647,price:238.70},
-                META:{shares:0.045577,price:569.01},
-                JPM:{shares:0.039305,price:320.84},
-                UNH:{shares:0.046529,price:408.78},
-                LLY:{shares:0.041579,price:1134.00},
-                NFLX:{shares:0.367164,price:80.37},
-                PG:{shares:0.32296,price:149.73},
-                COST:{shares:0.015838,price:981.51}
+                MSFT:{shares:0.075958,price:398.38},
+                AAPL:{shares:0.043344,price:327.70},
+                AMZN:{shares:0.072647,price:247.64},
+                META:{shares:0,price:0},
+                JPM:{shares:0,price:0},
+                UNH:{shares:0,price:0},
+                LLY:{shares:0,price:0},
+                NFLX:{shares:0.436779,price:68.44},
+                PG:{shares:0.32296,price:148.26},
+                COST:{shares:0.020199,price:930.01}
             }
         };
         for (var _p in _sh) {
@@ -4015,6 +4015,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         // Stamp ALL migration flags so nothing ever re-runs
+        _d.migrations.rh_import_jul21_v7 = true;
         _d.migrations.rh_import_jun12_v6 = true;
         _d.migrations.rh_import_may26_v5 = true;
         _d.migrations.rh_import_may26_v4 = true;
@@ -4027,8 +4028,6 @@ document.addEventListener('DOMContentLoaded', () => {
         _d.migrations.ewz_176_cloud_ok = true;
         _d.migrations.rh_needs_basis_reset = true;
         if (_bloomFreshInstall) {
-            // Cache was wiped — use _splitSave (no cloud push) and DON'T stamp
-            // lastModified so cloud data wins the timestamp comparison on merge
             _splitSave(_d);
         } else {
             _d.lastModified = Date.now();
