@@ -1534,12 +1534,24 @@ function beaconSave() {
         dismissedOpps: [...dismissedOpps]
     };
     var json = JSON.stringify(essential);
-    var chunks = [];
-    for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
-    for (var j = 0; j < chunks.length; j++) {
-        fireGet(API_BASE + '?action=dca_save_chunk&i=' + j + '&cd=' + encodeURIComponent(chunks[j]));
+    var encoded = encodeURIComponent(json);
+    // Use fetch with keepalive for reliable page-hide saves
+    if (encoded.length < 7000) {
+        try {
+            fetch(API_BASE + '?action=save_dca_data&data=' + encoded, { method: 'GET', keepalive: true });
+        } catch(e) { fireGet(API_BASE + '?action=save_dca_data&data=' + encoded); }
+    } else {
+        // Chunked: send sequentially via image tags (keepalive has 64KB limit)
+        var chunks = [];
+        for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
+        for (var j = 0; j < chunks.length; j++) {
+            fireGet(API_BASE + '?action=dca_save_chunk&i=' + j + '&cd=' + encodeURIComponent(chunks[j]));
+        }
+        // Delay done signal to give chunks time to arrive
+        setTimeout(function() {
+            fireGet(API_BASE + '?action=dca_save_done&n=' + chunks.length);
+        }, chunks.length * 200);
     }
-    fireGet(API_BASE + '?action=dca_save_done&n=' + chunks.length);
 }
 
 function loadFromCloud(cb, _attempt) {
@@ -1599,8 +1611,9 @@ function forcePushToCloud() {
             return;
         }
         if (txt) txt.textContent = 'Pushing...';
-        _saveInFlight = false; // reset any stuck in-flight
         syncReady = true;
+        // Wait for any in-flight save to finish before starting push
+        if (_saveInFlight) { _savePending = true; }
         _doCloudSave(function(err2) {
             if (dot) dot.className = err2 ? 'status-dot error' : 'status-dot ok';
             if (txt) txt.textContent = err2 ? 'Push failed: ' + err2 : 'Pushed!';
@@ -1660,17 +1673,15 @@ async function refreshPrices() {
             const allPortTickers = [...new Set(Object.values(PORTFOLIOS).flatMap(p => p.order))];
             const missingTickers = allPortTickers.filter(t => !livePrices[t] || !livePrices[t].price);
             if (missingTickers.length > 0) {
-                Promise.all(missingTickers.map(t => new Promise(resolve => {
+                await Promise.all(missingTickers.map(t => new Promise(resolve => {
                     jsonpFetch(API_BASE + '?action=quote&ticker=' + t, (err, resp) => {
                         if (!err && resp && resp.status === 'ok' && resp.price) {
-                            livePrices[t] = { ticker: t, price: resp.price, high52: 0, low52: 0, changePct: 0, rsi14: 50, sma50: 0, sma200: 0 };
+                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: 0, low52: 0, changePct: 0, rsi14: 50, sma50: 0, sma200: 0 };
                         }
                         resolve();
                     });
-                }))).then(() => {
-                    localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
-                    renderAll();
-                });
+                })));
+                localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
             }
             dot.className = 'status-dot ok';
             txt.textContent = 'Live';
@@ -1699,25 +1710,6 @@ async function refreshPrices() {
         }
     }
     recordValueSnapshot();
-    // Reset costBasis to market value for Robinhood import if prices weren't cached at import time
-    var _rbData = loadData();
-    if (_rbData.migrations && _rbData.migrations.rh_needs_basis_reset) {
-        var _rbSh = {
-            cushion:{JPST:11.34,VTIP:8.29,SPSB:15.66,DGRO:4.45,SCHD:12.93,SGOV:4.05,GLD:0.995906,VOO:0.196414},
-            growth:{VTI:0.488628,SCHG:4.55,VXUS:1.42,AVUV:0.693792,GDX:1.71,SMH:0.075937,VO:1.08,IBIT:2.91,EWZ:1.76},
-            stocks:{MSFT:0.061424,AAPL:0.043311,AMZN:0.03685,META:0.024312,JPM:0.028165,UNH:0.046529,LLY:0.041512,NFLX:0.33005,PG:0.320531}
-        };
-        for (var _rp in _rbSh) {
-            for (var _rt in _rbSh[_rp]) {
-                var _rpr = getPrice(_rt);
-                if (_rpr && _rbData.portfolios[_rp] && _rbData.portfolios[_rp].holdings[_rt]) {
-                    _rbData.portfolios[_rp].holdings[_rt].costBasis = _rbSh[_rp][_rt] * _rpr;
-                }
-            }
-        }
-        delete _rbData.migrations.rh_needs_basis_reset;
-        saveData(_rbData, true);
-    }
     renderAll();
 }
 
@@ -2038,7 +2030,7 @@ async function quickBuy(ticker, amount) {
     const cashAvail = data.cash[currentPortfolio] || 0;
     const fromCash = Math.min(amount, cashAvail);
     if (fromCash > 0) data.cash[currentPortfolio] = cashAvail - fromCash;
-    data.history.push({ id: 'buy_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
+    data.history.push({ id: 'buy_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }], cashUsed: fromCash });
     saveData(data, true);
     renderAll();
 }
@@ -2192,7 +2184,8 @@ async function mfBuy(ticker, name, amount) {
         portfolio: 'stocks',
         totalAmount: amount,
         type: 'dca',
-        allocations: [{ ticker, amount, shares, price }]
+        allocations: [{ ticker, amount, shares, price }],
+        cashUsed: fromCash
     });
     saveData(data, true);
     renderAll();
@@ -2506,7 +2499,7 @@ function confirmDCA() {
         pd.holdings[a.ticker].shares += a.shares;
         pd.holdings[a.ticker].costBasis += a.amount;
     });
-    data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: pendingDCA.totalAmount, type: 'dca', allocations: pendingDCA.allocations.filter(a => a.amount > 0).map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
+    data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: pendingDCA.totalAmount, type: 'dca', allocations: pendingDCA.allocations.filter(a => a.amount > 0).map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })), cashUsed: pendingDCA.cashUsed || 0 });
     if (pendingDCA.cashUsed > 0) { if (!data.cash) data.cash = {}; data.cash[currentPortfolio] = Math.max(0, (data.cash[currentPortfolio] || 0) - pendingDCA.cashUsed); }
     saveData(data);
     pendingDCA = null;
@@ -3065,17 +3058,26 @@ function renderAlerts() {
 function executeAllDriftAlerts() {
     const actionable = (window._driftAlerts || []).filter(a => a.sellTicker);
     if (actionable.length === 0) return;
+    // Deduplicate by portfolioKey + ticker (a ticker can generate both drift and take-profit alerts)
+    const seen = new Set();
+    const deduped = actionable.filter(a => {
+        const key = a.portfolioKey + '_' + a.sellTicker;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
     let msg = 'Execute all drift rebalances?\n\n';
-    actionable.forEach(a => {
-        msg += `SELL ${a.sellShares.toFixed(2)} ${a.sellTicker} (${fmt(a.sellAmt)})\n`;
+    deduped.forEach(a => {
+        msg += `[${PORTFOLIOS[a.portfolioKey].name}] SELL ${a.sellShares.toFixed(2)} ${a.sellTicker} (${fmt(a.sellAmt)})\n`;
         a.buyAllocs.forEach(b => { msg += `  BUY ${b.ticker} ${fmt(b.amount)} (${b.shares.toFixed(2)} shares)\n`; });
         msg += '\n';
     });
     const typed = prompt(msg + 'Type REBALANCE to confirm:');
     if (!typed || typed.trim().toUpperCase() !== 'REBALANCE') return;
     const data = loadData();
-    const pd = data.portfolios[currentPortfolio];
-    actionable.forEach(a => {
+    deduped.forEach(a => {
+        const pd = data.portfolios[a.portfolioKey];
+        if (!pd || !pd.holdings) return;
         const h = pd.holdings[a.sellTicker];
         if (!h || h.shares < a.sellShares) return;
         // Sell
@@ -3084,7 +3086,7 @@ function executeAllDriftAlerts() {
         h.shares -= a.sellShares;
         h.costBasis -= a.sellShares * avgCost;
         if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
-        data.history.push({ id: 'sell_' + Date.now() + '_' + a.sellTicker, date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: a.sellAmt, type: 'sell', ticker: a.sellTicker, shares: a.sellShares, price: a.sellPrice, profit });
+        data.history.push({ id: 'sell_' + Date.now() + '_' + a.sellTicker, date: new Date().toISOString(), portfolio: a.portfolioKey, totalAmount: a.sellAmt, type: 'sell', ticker: a.sellTicker, shares: a.sellShares, price: a.sellPrice, profit });
         // Buy underweight ETFs
         if (a.buyAllocs.length > 0) {
             const buyAllocations = [];
@@ -3095,7 +3097,7 @@ function executeAllDriftAlerts() {
                 pd.holdings[b.ticker].costBasis += b.amount;
                 buyAllocations.push({ ticker: b.ticker, amount: b.amount, shares: b.shares, price: b.price });
             });
-            data.history.push({ id: 'dca_' + Date.now() + '_' + a.sellTicker, date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: a.sellAmt, type: 'dca', allocations: buyAllocations, note: 'Drift rebalance from ' + a.sellTicker });
+            data.history.push({ id: 'dca_' + Date.now() + '_' + a.sellTicker, date: new Date().toISOString(), portfolio: a.portfolioKey, totalAmount: a.sellAmt, type: 'dca', allocations: buyAllocations, note: 'Drift rebalance from ' + a.sellTicker });
         }
     });
     saveData(data, true);
@@ -3137,6 +3139,11 @@ function undoTransaction(historyId) {
                 if (pd.holdings[a.ticker].shares < 0.0001) { pd.holdings[a.ticker].shares = 0; pd.holdings[a.ticker].costBasis = 0; }
             }
         });
+        // Restore cash that was used for this buy
+        if (h.cashUsed > 0) {
+            if (!data.cash) data.cash = {};
+            data.cash[h.portfolio] = (data.cash[h.portfolio] || 0) + h.cashUsed;
+        }
     }
     data.history.splice(idx, 1);
     saveData(data, true);
@@ -3149,12 +3156,13 @@ function undoDividend(ticker, dateStr) {
     if (idx === -1) { alert('Dividend not found'); return; }
     const d = data.dividendHistory[idx];
     const pd = data.portfolios[currentPortfolio];
-    if (pd && pd.holdings[d.ticker]) {
+    const targetTicker = d.buyTicker || d.ticker;
+    if (pd && pd.holdings[targetTicker]) {
         const price = d.price || (d.amount && d.shares ? d.amount / d.shares : 0);
         const shares = d.shares || (price > 0 ? d.amount / price : 0);
-        pd.holdings[d.ticker].shares = Math.max(0, pd.holdings[d.ticker].shares - shares);
-        pd.holdings[d.ticker].costBasis = Math.max(0, pd.holdings[d.ticker].costBasis - d.amount);
-        if (pd.holdings[d.ticker].shares < 0.0001) { pd.holdings[d.ticker].shares = 0; pd.holdings[d.ticker].costBasis = 0; }
+        pd.holdings[targetTicker].shares = Math.max(0, pd.holdings[targetTicker].shares - shares);
+        pd.holdings[targetTicker].costBasis = Math.max(0, pd.holdings[targetTicker].costBasis - d.amount);
+        if (pd.holdings[targetTicker].shares < 0.0001) { pd.holdings[targetTicker].shares = 0; pd.holdings[targetTicker].costBasis = 0; }
     }
     data.dividendHistory.splice(idx, 1);
     saveData(data, true);
@@ -3931,28 +3939,9 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
         if (serverTs) restored.lastSyncedAt = serverTs;
         // Union migrations: if either device completed a migration, mark it done
         restored.migrations = Object.assign({}, local.migrations || {}, restored.migrations || {});
-        // EWZ correction: cloud has wrong share count — fix before saving
-        if (restored.portfolios && restored.portfolios.growth &&
-            restored.portfolios.growth.holdings && restored.portfolios.growth.holdings.EWZ &&
-            restored.portfolios.growth.holdings.EWZ.shares < 1.7) {
-            restored.portfolios.growth.holdings.EWZ.shares = 1.76;
-            restored.lastModified = Date.now(); // make local newer so it wins next cloud compare
-        }
         _splitSave(restored);
         if (!isStartup) renderAll();
     }
-    // EWZ correction — runs unconditionally regardless of who won timestamp compare
-    (function() {
-        const d = loadData();
-        if (!d.portfolios || !d.portfolios.growth || !d.portfolios.growth.holdings) return;
-        if (!d.portfolios.growth.holdings.EWZ) d.portfolios.growth.holdings.EWZ = { shares: 0, costBasis: 68.74 };
-        if (d.portfolios.growth.holdings.EWZ.shares < 1.7) {
-            d.portfolios.growth.holdings.EWZ.shares = 1.76;
-            d.lastModified = Date.now();
-            _splitSave(d);
-            if (syncReady) setTimeout(() => _doCloudSave(), 300);
-        }
-    })();
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
     if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
     if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
@@ -3963,78 +3952,6 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
     // Detect cache-wipe: if SK_CORE doesn't exist, localStorage was cleared
     var _bloomFreshInstall = !localStorage.getItem(SK_CORE);
-    // Consolidated migration — Jul 21 2026 Robinhood reconcile (from live screenshots)
-    // v7: correct all share counts, zero out sold positions (META/JPM/UNH/LLY)
-    (function() {
-        var _d = loadData();
-        if (_d.migrations && _d.migrations.rh_import_jul21_v7) return;
-        if (!_d.migrations) _d.migrations = {};
-        var _sh = {
-            cushion: {
-                JPST:{shares:28.12,price:50.50},
-                VTIP:{shares:27.87,price:49.65},
-                SPSB:{shares:34.10,price:29.91},
-                DGRO:{shares:11.52,price:76.84},
-                SCHD:{shares:35.38,price:32.81},
-                SGOV:{shares:7.50,price:100.60},
-                VOO:{shares:0.804613,price:687.99},
-                GLD:{shares:1.90,price:374.70}
-            },
-            growth: {
-                VTI:{shares:1.77,price:369.55},
-                SCHG:{shares:14.64,price:34.28},
-                VXUS:{shares:4.65,price:84.43},
-                AVUV:{shares:2.45,price:126.00},
-                SCHD:{shares:1.09,price:32.81},
-                GDX:{shares:1.71,price:73.97},
-                SMH:{shares:0.230825,price:583.93},
-                VO:{shares:1.08,price:80.49},
-                IBIT:{shares:2.33,price:37.64},
-                EWZ:{shares:1.78,price:35.63}
-            },
-            stocks: {
-                MSFT:{shares:0.075958,price:398.38},
-                AAPL:{shares:0.043344,price:327.70},
-                AMZN:{shares:0.072647,price:247.64},
-                META:{shares:0,price:0},
-                JPM:{shares:0,price:0},
-                UNH:{shares:0,price:0},
-                LLY:{shares:0,price:0},
-                NFLX:{shares:0.436779,price:68.44},
-                PG:{shares:0.32296,price:148.26},
-                COST:{shares:0.020199,price:930.01}
-            }
-        };
-        for (var _p in _sh) {
-            if (!_d.portfolios[_p]) _d.portfolios[_p] = {holdings:{}};
-            for (var _t in _sh[_p]) {
-                var _e = _sh[_p][_t];
-                _d.portfolios[_p].holdings[_t] = {
-                    shares: _e.shares,
-                    costBasis: _e.shares * _e.price
-                };
-            }
-        }
-        // Stamp ALL migration flags so nothing ever re-runs
-        _d.migrations.rh_import_jul21_v7 = true;
-        _d.migrations.rh_import_jun12_v6 = true;
-        _d.migrations.rh_import_may26_v5 = true;
-        _d.migrations.rh_import_may26_v4 = true;
-        _d.migrations.rh_import_may25_v3 = true;
-        _d.migrations.rh_import_may25_v2 = true;
-        _d.migrations.rh_basis_v2 = true;
-        _d.migrations.rh_import_may8 = true;
-        _d.migrations.rh_fix_apr14_v3 = true;
-        _d.migrations.rh_import_may15 = true;
-        _d.migrations.ewz_176_cloud_ok = true;
-        _d.migrations.rh_needs_basis_reset = true;
-        if (_bloomFreshInstall) {
-            _splitSave(_d);
-        } else {
-            _d.lastModified = Date.now();
-            saveData(_d, true);
-        }
-    })();
     // Stamp lastModified if missing on existing data
     (function() {
         var d = loadData();
@@ -4051,20 +3968,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
     // Render from localStorage immediately — don't wait for cloud
-    syncReady = true;
+    // syncReady stays false until cloud load completes to prevent
+    // premature pushes that could overwrite good cloud data
     renderAll();
-    // Start price fetch right away (uses cache if network is slow)
-    refreshPrices();
-    // PULL cloud first, merge, then push — prevents stale/empty local
-    // from overwriting good cloud data (Android evicts PWA storage)
+    // PULL cloud first, merge, then enable sync
     loadFromCloud(function(cloud, serverTs) {
         if (cloud && cloud.portfolios) {
             mergeCloudData(cloud, true, serverTs, _bloomFreshInstall);
             renderAll();
         }
+        // NOW enable sync — cloud state is merged, safe to push
+        syncReady = true;
         refreshPrices();
         fetchMagicFormula();
-        // Now push merged state back to cloud (only if not a fresh install with no real data)
+        // Push merged state back to cloud (only if not a fresh install with no real data)
         if (!_bloomFreshInstall || (cloud && cloud.portfolios)) _doCloudSave();
     });
 });
