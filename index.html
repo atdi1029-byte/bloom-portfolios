@@ -1109,14 +1109,15 @@ const PORTFOLIOS = {
         name: 'Lifetime Growth',
         hardCap: 0,
         targets: {
-            VTI:  { pct: 35, purpose: 'Total US market core' },
-            SCHG: { pct: 23, purpose: 'Large-cap growth' },
-            VXUS: { pct: 18, purpose: 'International diversification' },
+            VTI:  { pct: 34, purpose: 'Total US market core' },
+            SCHG: { pct: 22, purpose: 'Large-cap growth' },
+            VXUS: { pct: 17, purpose: 'International diversification' },
             AVUV: { pct: 13, purpose: 'Small-cap value premium' },
-            SCHD: { pct: 11, purpose: 'Dividend compounder' }
+            SCHD: { pct: 11, purpose: 'Dividend compounder' },
+            VO:   { pct: 3,  purpose: 'Mid-cap stocks' }
         },
-        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD'],
-        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD']
+        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'VO'],
+        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'VO']
     },
     ira: {
         name: 'IRA Retirement',
@@ -1466,8 +1467,17 @@ function loadFromCloud(cb, _attempt) {
             return;
         }
         if (result.status === 'ok' && result.data) {
-            var parsed = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-            cb(parsed, result.lastSaved || null);
+            try {
+                var parsed = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+                cb(parsed, result.lastSaved || null);
+            } catch(e) {
+                console.error('[Bloom] Cloud data JSON parse failed:', e.message);
+                var dot = document.getElementById('statusDot');
+                var txt = document.getElementById('statusText');
+                if (dot) dot.className = 'status-dot error';
+                if (txt) txt.textContent = 'Cloud data corrupted';
+                cb(null, null);
+            }
         } else { cb(null, null); }
     });
 }
