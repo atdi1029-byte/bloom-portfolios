@@ -456,115 +456,6 @@
         .buy-opp-stats { font-size: 0.6rem; color: var(--text-dim); font-weight: 500; }
         .buy-opp-stats span { color: var(--leaf); font-weight: 700; }
 
-        /* ============ MAGIC FORMULA ============ */
-        .mf-section {
-            background: linear-gradient(135deg, rgba(212,168,67,0.08), rgba(232,200,112,0.12));
-            border: 1px solid rgba(212,168,67,0.35);
-            border-radius: 16px;
-            padding: 1.25rem;
-            margin-bottom: 1.25rem;
-            display: none;
-        }
-        .mf-section.show { display: block; }
-        .mf-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            margin-bottom: 0.5rem;
-        }
-        .mf-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 0.95rem;
-            color: var(--gold);
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-        .mf-subtitle {
-            font-size: 0.55rem;
-            color: var(--text-dim);
-            font-weight: 500;
-            margin-bottom: 1rem;
-        }
-        .mf-toggle {
-            font-size: 0.65rem;
-            color: var(--gold);
-            font-weight: 600;
-            background: rgba(212,168,67,0.15);
-            border: 1px solid rgba(212,168,67,0.3);
-            border-radius: 8px;
-            padding: 3px 10px;
-            cursor: pointer;
-        }
-        .mf-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 0.75rem;
-        }
-        .mf-grid.collapsed { display: none; }
-        .mf-card {
-            background: white;
-            border: 2px solid rgba(212,168,67,0.3);
-            border-radius: 12px;
-            padding: 0.75rem;
-            position: relative;
-        }
-        .mf-card.owned { border-color: var(--leaf-light); }
-        .mf-rank {
-            position: absolute;
-            top: 6px;
-            right: 8px;
-            font-size: 0.55rem;
-            color: var(--gold);
-            font-weight: 700;
-            background: rgba(212,168,67,0.12);
-            border-radius: 6px;
-            padding: 1px 6px;
-        }
-        .mf-ticker {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--gold);
-            font-family: 'Playfair Display', serif;
-        }
-        .mf-name {
-            font-size: 0.5rem;
-            color: var(--text-dim);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 140px;
-        }
-        .mf-metrics {
-            font-size: 0.55rem;
-            color: var(--text-dim);
-            font-weight: 500;
-            margin: 4px 0;
-            line-height: 1.5;
-        }
-        .mf-metrics span { color: var(--gold); font-weight: 700; }
-        .mf-owned-badge {
-            font-size: 0.45rem;
-            background: var(--leaf-light);
-            color: var(--leaf-dim);
-            border-radius: 4px;
-            padding: 1px 5px;
-            font-weight: 700;
-            display: inline-block;
-            margin-top: 2px;
-        }
-        .mf-scanning {
-            text-align: center;
-            padding: 2rem 1rem;
-            color: var(--text-dim);
-            font-size: 0.75rem;
-        }
-        .mf-scanning .pct {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--gold);
-            font-family: 'Playfair Display', serif;
-        }
 
         /* ============ SMART DCA SECTION ============ */
         .dca-section {
@@ -954,7 +845,7 @@
                 <option value="cushion">4-Year Cushion</option>
                 <option value="growth">Lifetime Growth</option>
                 <option value="ira">IRA Retirement</option>
-                <option value="stocks">Stock Picks</option>
+                <option value="stocks">Flywheel</option>
             </select>
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
@@ -1001,15 +892,6 @@
         <div class="buy-opps-grid" id="buyOppsGrid"></div>
     </div>
 
-    <!-- MAGIC FORMULA -->
-    <div class="mf-section" id="mfSection">
-        <div class="mf-header" onclick="toggleMF()">
-            <div class="mf-title">Magic Formula Top 30</div>
-            <div class="mf-toggle" id="mfToggle">Hide</div>
-        </div>
-        <div class="mf-subtitle" id="mfSubtitle">Greenblatt's value screen — cheapest quality businesses</div>
-        <div class="mf-grid" id="mfGrid"></div>
-    </div>
 
     <!-- FUNDED BANNER -->
     <div class="funded-banner" id="fundedBanner">Portfolio Fully Funded!</div>
@@ -1216,35 +1098,29 @@ const PORTFOLIOS = {
         hardCap: 108000,
         yearlyExpense: 27000,
         targets: {
-            JPST: { pct: 20, purpose: 'Ultra-short income' },
-            VTIP: { pct: 17, purpose: 'Inflation hedge (TIPS)' },
-            SPSB: { pct: 13, purpose: 'Short-term corporate bonds' },
-            DGRO: { pct: 13, purpose: 'Dividend growth' },
-            SCHD: { pct: 12, purpose: 'Quality dividends' },
-            SGOV: { pct: 10, purpose: 'T-bills (safest)' },
-            GLD:  { pct: 8,  purpose: 'Gold' },
-            VOO:  { pct: 7,  purpose: 'S&P 500' }
+            JPST: { pct: 22, purpose: 'Ultra-short income' },
+            VTIP: { pct: 18, purpose: 'Inflation hedge (TIPS)' },
+            SPSB: { pct: 14, purpose: 'Short-term corporate bonds' },
+            DGRO: { pct: 14, purpose: 'Dividend growth' },
+            SCHD: { pct: 13, purpose: 'Quality dividends' },
+            SGOV: { pct: 11, purpose: 'T-bills (safest)' },
+            VOO:  { pct: 8,  purpose: 'S&P 500' }
         },
         dividendReinvest: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'VOO'],
-        order: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'GLD', 'VOO']
+        order: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'VOO']
     },
     growth: {
         name: 'Lifetime Growth',
         hardCap: 0,
         targets: {
-            VTI:  { pct: 30, purpose: 'Total US market core' },
-            SCHG: { pct: 20, purpose: 'Large-cap growth' },
-            VXUS: { pct: 15, purpose: 'International diversification' },
-            AVUV: { pct: 12, purpose: 'Small-cap value premium' },
-            SCHD: { pct: 12, purpose: 'Dividend compounder' },
-            GDX:  { pct: 4,  purpose: 'Gold miners' },
-            SMH:  { pct: 4,  purpose: 'Semiconductors / AI' },
-            VO:   { pct: 1,  purpose: 'Mid-cap stocks' },
-            EWZ:  { pct: 2,  purpose: 'Brazil / Latin America' },
-            IBIT: { pct: 2,  purpose: 'Bitcoin long-term hold' }
+            VTI:  { pct: 35, purpose: 'Total US market core' },
+            SCHG: { pct: 23, purpose: 'Large-cap growth' },
+            VXUS: { pct: 18, purpose: 'International diversification' },
+            AVUV: { pct: 13, purpose: 'Small-cap value premium' },
+            SCHD: { pct: 11, purpose: 'Dividend compounder' }
         },
-        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO', 'EWZ'],
-        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'GDX', 'SMH', 'VO', 'EWZ', 'IBIT']
+        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD'],
+        order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD']
     },
     ira: {
         name: 'IRA Retirement',
@@ -1262,25 +1138,41 @@ const PORTFOLIOS = {
         order: ['SCHD', 'JEPI', 'JEPQ', 'VNQ', 'GLDM', 'BND', 'VTIP']
     },
     stocks: {
-        name: 'Stock Picks',
+        name: 'Flywheel',
         hardCap: 0,
         targets: {
-            NVDA: { pct: 12, purpose: 'AI / GPU leader' },
-            MSFT: { pct: 10, purpose: 'Cloud + AI platform' },
-            AAPL: { pct: 10, purpose: 'Consumer tech moat' },
-            AMZN: { pct: 10, purpose: 'AWS + e-commerce' },
-            GOOG: { pct: 8,  purpose: 'Search + Cloud + YouTube' },
-            META: { pct: 8,  purpose: 'Social monopoly + AI' },
-            'BRK.B': { pct: 8, purpose: 'Berkshire Hathaway' },
-            JPM:  { pct: 6,  purpose: 'Largest US bank' },
-            UNH:  { pct: 6,  purpose: 'Healthcare giant' },
-            LLY:  { pct: 6,  purpose: 'Pharma / weight loss drugs' },
-            COST: { pct: 6,  purpose: 'Membership retail moat' },
-            NFLX: { pct: 5,  purpose: 'Streaming winner' },
-            PG:   { pct: 5,  purpose: 'Consumer staples dividend king' }
+            NVDA: { pct: 0,  purpose: 'AI / GPU leader' },
+            MSFT: { pct: 0,  purpose: 'Cloud + AI platform' },
+            AAPL: { pct: 0,  purpose: 'Consumer tech moat' },
+            AMZN: { pct: 0,  purpose: 'AWS + e-commerce' },
+            GOOG: { pct: 0,  purpose: 'Search + Cloud + YouTube' },
+            META: { pct: 0,  purpose: 'Social monopoly + AI' },
+            'BRK.B': { pct: 0, purpose: 'Berkshire Hathaway' },
+            JPM:  { pct: 0,  purpose: 'Largest US bank' },
+            UNH:  { pct: 0,  purpose: 'Healthcare giant' },
+            LLY:  { pct: 0,  purpose: 'Pharma / weight loss drugs' },
+            COST: { pct: 0,  purpose: 'Membership retail moat' },
+            NFLX: { pct: 0,  purpose: 'Streaming winner' },
+            PG:   { pct: 0,  purpose: 'Consumer staples dividend king' },
+            GLD:  { pct: 0,  purpose: 'Gold' },
+            GDX:  { pct: 0,  purpose: 'Gold miners' },
+            SMH:  { pct: 0,  purpose: 'Semiconductors / AI' },
+            EWZ:  { pct: 0,  purpose: 'Brazil / Latin America' },
+            IBIT: { pct: 0,  purpose: 'Bitcoin' },
+            SLV:  { pct: 0,  purpose: 'Silver' },
+            TSLA: { pct: 0,  purpose: 'EV / energy / ultimate swing stock' },
+            CPER: { pct: 0,  purpose: 'Copper' },
+            TSM:  { pct: 0,  purpose: 'Foundry monopoly' },
+            AVGO: { pct: 0,  purpose: 'AI networking / semis' },
+            XOM:  { pct: 0,  purpose: 'Oil supermajor' },
+            V:    { pct: 0,  purpose: 'Payments duopoly' },
+            CAT:  { pct: 0,  purpose: 'Industrial bellwether' },
+            INTC: { pct: 0,  purpose: 'Chip turnaround' },
+            HD:   { pct: 0,  purpose: 'Housing / rate cycle' },
+            BA:   { pct: 0,  purpose: 'Aerospace turnaround' }
         },
-        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG'],
-        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK.B', 'JPM', 'UNH', 'LLY', 'COST', 'NFLX', 'PG']
+        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG', 'TSM', 'AVGO', 'XOM', 'V', 'CAT', 'INTC', 'HD'],
+        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK.B', 'JPM', 'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'SMH', 'EWZ', 'IBIT', 'SLV', 'TSLA', 'CPER', 'TSM', 'AVGO', 'XOM', 'V', 'CAT', 'INTC', 'HD', 'BA']
     }
 };
 
@@ -1298,7 +1190,11 @@ const ETF_COLORS = {
     AMZN: '#e8a040', GOOG: '#5888e0', META: '#4070d8',
     'BRK.B': '#6050a0', JPM: '#406088', UNH: '#405878',
     LLY:  '#d05040', COST: '#d84050', NFLX: '#d83040',
-    PG:   '#4060b0'
+    PG:   '#4060b0',
+    SLV:  '#c0c0c8', TSLA: '#cc0000', CPER: '#b87333',
+    TSM:  '#4890d0', V:    '#1a1f71', CAT:  '#f0c030',
+    INTC: '#0068b5', HD:   '#f06020', BA:   '#005daa',
+    XOM:  '#d83020'
 };
 
 // ====== STATE ======
@@ -1902,7 +1798,6 @@ function renderAll() {
     renderStockOppsBanner();
     renderSellBanner();
     renderBuyOpps();
-    renderMagicFormula();
     renderProgress();
     renderStats();
     renderETFGrid();
@@ -1952,9 +1847,7 @@ function renderBuyOpps() {
     const grid = document.getElementById('buyOppsGrid');
     if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
     const opps = [];
-    // Tickers already scanned (avoid duplicates between portfolio + MF)
     const scanned = new Set();
-    // 1. Portfolio-owned stocks
     pDef.order.forEach(ticker => {
         scanned.add(ticker);
         if (dismissedOpps.has(ticker)) return;
@@ -1966,37 +1859,25 @@ function renderBuyOpps() {
             const drawdown = high52 > 0 ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
             opps.push({
                 ticker, valScore, rsi: p.rsi14 || 50, price, drawdown,
-                purpose: pDef.targets[ticker].purpose, mfRank: null
+                purpose: pDef.targets[ticker].purpose
             });
         }
     });
-    // 2. Magic Formula top-30 — show when oversold, even if not yet owned
-    if (mfData && mfData.stocks) {
-        mfData.stocks.forEach(s => {
-            if (scanned.has(s.ticker)) return; // already covered above
-            if (dismissedOpps.has(s.ticker)) return;
-            const valScore = calcValuationScore(s.ticker);
-            const p = livePrices[s.ticker] || {};
-            const price = p.price || 0;
-            const high52 = p.high52 || 0;
-            if (valScore >= 0.60 && price > 0) {
-                const drawdown = high52 > 0
-                    ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
-                opps.push({
-                    ticker: s.ticker, valScore, rsi: p.rsi14 || 50,
-                    price, drawdown,
-                    purpose: s.name,
-                    mfRank: s.rank
-                });
-            }
-        });
-    }
     if (opps.length === 0) { section.classList.remove('show'); return; }
     section.classList.add('show');
-    grid.innerHTML = opps.sort((a, b) => b.valScore - a.valScore).map(o => `
+    const sorted = opps.sort((a, b) => b.valScore - a.valScore);
+    const top5 = sorted.slice(0, 5).map(o => o.ticker);
+    const top5Btns = top5.length >= 2 ? `
+        <div style="display:flex; gap:6px; margin-bottom:0.75rem; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:0.6rem; color:var(--text-dim); font-weight:600; text-transform:uppercase; letter-spacing:1px;">Buy Top ${Math.min(5, top5.length)}</span>
+            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopN(${JSON.stringify(top5)}, 15)">$15</button>
+            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopN(${JSON.stringify(top5)}, 25)">$25</button>
+            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopN(${JSON.stringify(top5)}, 50)">$50</button>
+            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopNCustom(${JSON.stringify(top5)})">$?</button>
+        </div>` : '';
+    grid.innerHTML = top5Btns + sorted.map(o => `
         <div class="buy-opp-card" style="position:relative;">
             <div onclick="dismissOpp('${o.ticker}')" style="position:absolute; top:4px; right:8px; cursor:pointer; font-size:1.1rem; color:var(--text-dim); line-height:1;">&times;</div>
-            ${o.mfRank ? `<div style="font-size:0.5rem; color:var(--rose-deep); font-weight:700; text-transform:uppercase; margin-bottom:2px;">Magic Formula #${o.mfRank}</div>` : ''}
             <div class="buy-opp-ticker">${o.ticker}</div>
             <div style="font-size:0.55rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${o.purpose}</div>
             <div class="buy-opp-price">${fmt(o.price)}</div>
@@ -2035,6 +1916,17 @@ async function quickBuy(ticker, amount) {
     renderAll();
 }
 
+async function buyTopN(tickers, totalAmount) {
+    await refreshPrices();
+    const perTicker = totalAmount / tickers.length;
+    for (const ticker of tickers) await quickBuy(ticker, perTicker);
+}
+async function buyTopNCustom(tickers) {
+    const amount = prompt('Buy top ' + tickers.length + ' — Enter total dollar amount:');
+    if (!amount) return;
+    const val = parseFloat(amount.replace(/,/g, ''));
+    if (val > 0) await buyTopN(tickers, val);
+}
 async function quickBuyCustom(ticker) {
     const amount = prompt('Buy ' + ticker + ' — Enter dollar amount:');
     if (!amount) return;
@@ -2042,170 +1934,6 @@ async function quickBuyCustom(ticker) {
     if (val > 0) await quickBuy(ticker, val);
 }
 
-// ====== MAGIC FORMULA ======
-let mfData = null;
-let mfCollapsed = localStorage.getItem('bloom_mf_collapsed') !== '0'; // collapsed by default
-const MF_CACHE_KEY = 'bloom_magic_formula';
-const MF_CACHE_HOURS = 6;
-
-function fetchMagicFormula() {
-    const cached = localStorage.getItem(MF_CACHE_KEY);
-    if (cached) {
-        try {
-            const parsed = JSON.parse(cached);
-            if (parsed.ts && Date.now() - parsed.ts < MF_CACHE_HOURS * 3600000) {
-                mfData = parsed.data;
-                renderMagicFormula();
-                _fetchMFTechnicals();
-                return;
-            }
-        } catch(e) {}
-    }
-    jsonpFetch(API_BASE + '?action=magic_formula', (err, resp) => {
-        if (err || !resp || resp.status !== 'ok') return;
-        mfData = resp;
-        localStorage.setItem(MF_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: resp }));
-        renderMagicFormula();
-        _fetchMFTechnicals();
-    });
-}
-
-// Fetch RSI/SMA/high52 for MF tickers not already in livePrices.
-// Requires Apps Script dca_prices to support &extra=TICKER,TICKER param.
-function _fetchMFTechnicals() {
-    if (!mfData || !mfData.stocks) return;
-    // Find MF tickers not already covered by portfolio price fetch
-    const allPortfolioTickers = new Set(
-        Object.values(PORTFOLIOS).flatMap(p => p.order)
-    );
-    const missing = mfData.stocks
-        .map(s => s.ticker)
-        .filter(t => !allPortfolioTickers.has(t) && !livePrices[t]);
-    if (missing.length === 0) { renderBuyOpps(); return; }
-    // Request technicals for missing MF tickers via dca_prices with extra param
-    fetch(API_BASE + '?action=dca_prices&extra=' + missing.join(','))
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'ok' && data.etfs) {
-                data.etfs.forEach(e => {
-                    // Only add — don't overwrite existing portfolio prices
-                    if (!livePrices[e.ticker]) livePrices[e.ticker] = e;
-                });
-            }
-        })
-        .catch(() => {})
-        .finally(() => renderBuyOpps());
-}
-
-function toggleMF() {
-    mfCollapsed = !mfCollapsed;
-    localStorage.setItem('bloom_mf_collapsed', mfCollapsed ? '1' : '0');
-    renderMagicFormula();
-}
-
-function renderMagicFormula() {
-    const section = document.getElementById('mfSection');
-    const grid = document.getElementById('mfGrid');
-    const toggle = document.getElementById('mfToggle');
-    const subtitle = document.getElementById('mfSubtitle');
-
-    if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
-
-    // Only show if we have actual data
-    if (!mfData || !mfData.stocks || mfData.stocks.length === 0) {
-        section.classList.remove('show');
-        return;
-    }
-    section.classList.add('show');
-
-    toggle.style.display = '';
-    toggle.textContent = mfCollapsed ? 'Show' : 'Hide';
-
-    // Update subtitle with scan info
-    const updated = mfData.lastUpdated ? new Date(mfData.lastUpdated).toLocaleDateString() : 'unknown';
-    subtitle.textContent = 'Greenblatt\'s value screen \u2014 updated ' + updated + ' \u2014 ' + mfData.stocks.length + ' stocks ranked';
-
-    if (mfCollapsed) { grid.classList.add('collapsed'); return; }
-    grid.classList.remove('collapsed');
-
-    // Check which MF tickers we already own in stocks portfolio
-    const data = loadData();
-    const holdings = (data.portfolios.stocks && data.portfolios.stocks.holdings) || {};
-
-    grid.innerHTML = mfData.stocks.map(s => {
-        const owned = holdings[s.ticker] && holdings[s.ticker].shares > 0;
-        const mktCapB = (s.marketCap / 1e9).toFixed(1);
-        const ey = (s.earningsYield * 100).toFixed(1);
-        const rotc = (s.rotc * 100).toFixed(1);
-        return `<div class="mf-card${owned ? ' owned' : ''}">
-            <div class="mf-rank">#${s.rank}</div>
-            <div class="mf-ticker">${s.ticker}</div>
-            <div class="mf-name">${s.name}</div>
-            <div class="mf-metrics">
-                EY <span>${ey}%</span> &bull; ROTC <span>${rotc}%</span><br>
-                ${s.sector ? s.sector + ' &bull; ' : ''}$${mktCapB}B${s.pe > 0 ? ' &bull; PE ' + s.pe.toFixed(1) : ''}
-            </div>
-            ${owned ? '<div class="mf-owned-badge">OWNED</div>' : ''}
-            <div style="display:flex; gap:4px; margin-top:0.5rem;">
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="mfBuy('${s.ticker}', '${s.name.replace(/'/g, "\\'")}', 10)">$10</button>
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="mfBuy('${s.ticker}', '${s.name.replace(/'/g, "\\'")}', 50)">$50</button>
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="mfBuyCustom('${s.ticker}', '${s.name.replace(/'/g, "\\'")}')">$?</button>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-// Buy a Magic Formula stock — fetch live price via quote endpoint, then add to stocks portfolio
-async function mfBuy(ticker, name, amount) {
-    // First get live price
-    const price = await getMFPrice(ticker);
-    if (!price || price <= 0) { alert('Could not get price for ' + ticker); return; }
-    const shares = amount / price;
-    const data = loadData();
-    const pd = data.portfolios.stocks;
-    if (!pd.holdings) pd.holdings = {};
-    if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0, isMagicFormula: true };
-    pd.holdings[ticker].shares += shares;
-    pd.holdings[ticker].costBasis += amount;
-    pd.holdings[ticker].isMagicFormula = true;
-    // Add to targets if not already there so it shows in ETF grid
-    if (!PORTFOLIOS.stocks.targets[ticker]) {
-        PORTFOLIOS.stocks.targets[ticker] = { pct: 0, purpose: 'Magic Formula — ' + name };
-        PORTFOLIOS.stocks.order.push(ticker);
-        if (!ETF_COLORS[ticker]) ETF_COLORS[ticker] = '#d4a843';
-    }
-    if (!data.cash) data.cash = {};
-    const cashAvail = data.cash.stocks || 0;
-    const fromCash = Math.min(amount, cashAvail);
-    if (fromCash > 0) data.cash.stocks = cashAvail - fromCash;
-    data.history.push({
-        id: 'mf_' + Date.now(),
-        date: new Date().toISOString(),
-        portfolio: 'stocks',
-        totalAmount: amount,
-        type: 'dca',
-        allocations: [{ ticker, amount, shares, price }],
-        cashUsed: fromCash
-    });
-    saveData(data, true);
-    renderAll();
-}
-
-async function mfBuyCustom(ticker, name) {
-    const amount = prompt('Buy ' + ticker + ' (' + name + ') — Enter dollar amount:');
-    if (!amount) return;
-    const val = parseFloat(amount.replace(/,/g, ''));
-    if (val > 0) await mfBuy(ticker, name, val);
-}
-
-function getMFPrice(ticker) {
-    return new Promise(resolve => {
-        jsonpFetch(API_BASE + '?action=quote&ticker=' + ticker, (err, resp) => {
-            if (err || !resp || resp.status !== 'ok') { resolve(0); return; }
-            resolve(resp.price || 0);
-        });
-    });
-}
 
 // ====== PROGRESS BAR ======
 function renderProgress() {
@@ -3643,7 +3371,12 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     if (!data.portfolios[portfolioKey]) { data.portfolios[portfolioKey] = { holdings: {} }; pDef.order.forEach(t => { data.portfolios[portfolioKey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
     const pd = data.portfolios[portfolioKey];
     let tickers = pDef.order;
-    if (onlyOpps) { tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.60); if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true }; }
+    if (onlyOpps) {
+        tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.60);
+        if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true };
+        // Flywheel: pick top 5 most undervalued
+        tickers = tickers.map(t => ({ t, vs: calcValuationScore(t) })).sort((a, b) => b.vs - a.vs).slice(0, 5).map(x => x.t);
+    }
     let totalVal = 0;
     pDef.order.forEach(t => { totalVal += (pd.holdings[t] || { shares: 0 }).shares * getPrice(t); });
     const cap = pDef.hardCap;
@@ -3981,7 +3714,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // NOW enable sync — cloud state is merged, safe to push
         syncReady = true;
         refreshPrices();
-        fetchMagicFormula();
         // Push merged state back to cloud (only if not a fresh install with no real data)
         if (!_bloomFreshInstall || (cloud && cloud.portfolios)) _doCloudSave();
     });
