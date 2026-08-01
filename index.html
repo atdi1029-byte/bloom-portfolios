@@ -3688,6 +3688,17 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
+    // ONE-TIME DATA RECOVERY — remove after data is restored
+    if (!localStorage.getItem('bloom_recovered_aug1')) {
+        var _recov = {"portfolios":{"cushion":{"holdings":{"JPST":{"shares":30.36,"costBasis":0},"VTIP":{"shares":28.82,"costBasis":0},"SPSB":{"shares":37.74,"costBasis":0},"DGRO":{"shares":11.92,"costBasis":0},"SCHD":{"shares":19.39,"costBasis":0},"SGOV":{"shares":8.29,"costBasis":0},"VOO":{"shares":0.879479,"costBasis":0}}},"growth":{"holdings":{"VTI":{"shares":1.97,"costBasis":0},"SCHG":{"shares":15.42,"costBasis":0},"VXUS":{"shares":4.65,"costBasis":0},"AVUV":{"shares":2.45,"costBasis":0},"SCHD":{"shares":19.39,"costBasis":0},"VO":{"shares":1.08,"costBasis":0}}},"ira":{"holdings":{}},"stocks":{"holdings":{"MSFT":{"shares":0.075958,"costBasis":0},"AMZN":{"shares":0.072647,"costBasis":0},"GOOG":{"shares":0.01283,"costBasis":0},"COST":{"shares":0.021678,"costBasis":0},"NFLX":{"shares":0.436779,"costBasis":0},"GLD":{"shares":1.90,"costBasis":0},"GDX":{"shares":1.71,"costBasis":0},"SMH":{"shares":0.230825,"costBasis":0},"EWZ":{"shares":1.78,"costBasis":0},"IBIT":{"shares":2.33,"costBasis":0}}}},"cash":{},"splitterRatios":{"cushion":70,"growth":25,"ira":0,"stocks":5},"splitterTotal":"","history":[],"dividendHistory":[],"valueSnapshots":[],"lastModified":1722531600000,"migrations":{}};
+        var _rc = {portfolios:_recov.portfolios,cash:_recov.cash,splitterRatios:_recov.splitterRatios,splitterTotal:"",lastModified:_recov.lastModified,migrations:{}};
+        localStorage.setItem(SK_CORE, JSON.stringify(_rc));
+        localStorage.setItem('dca_history', JSON.stringify([]));
+        localStorage.setItem('dca_dividends', JSON.stringify([]));
+        localStorage.setItem('dca_snapshots', JSON.stringify([]));
+        localStorage.setItem('bloom_recovered_aug1', '1');
+        console.log('[Bloom] Data recovered from inline backup');
+    }
     // Detect cache-wipe: if SK_CORE doesn't exist, localStorage was cleared
     var _bloomFreshInstall = !localStorage.getItem(SK_CORE);
     // Stamp lastModified if missing on existing data
