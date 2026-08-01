@@ -2006,6 +2006,8 @@ function renderStats() {
     }
     const cashInfo = document.getElementById('dcaCashInfo');
     const cashCheckbox = document.getElementById('dcaUseCash').parentElement;
+    const isStocks = currentPortfolio === 'stocks';
+    const cash = getCash();
     if (isStocks) {
         if (cash > 0) {
             cashInfo.textContent = 'Cash: ' + fmt(cash);
