@@ -929,10 +929,6 @@
             <div class="stat-label">Dividends Earned</div>
             <div class="stat-value" id="statDividends">$0</div>
         </div>
-        <div class="stat-card">
-            <div class="stat-label">Cash Available</div>
-            <div class="stat-value" id="statCash" style="color:var(--rose-deep);">$0</div>
-        </div>
         <div class="stat-card" id="statSpecial" style="display:none;">
             <div class="stat-label" id="statSpecialLabel"></div>
             <div class="stat-value" id="statSpecialValue"></div>
@@ -1971,10 +1967,6 @@ function renderStats() {
     retEl.textContent = (totalRet >= 0 ? '+' : '') + fmt(totalRet);
     retEl.className = 'stat-value ' + (totalRet >= 0 ? 'green' : 'red');
     document.getElementById('statDividends').textContent = fmt(getTotalDividends());
-    const cash = getCash();
-    const isStocks = currentPortfolio === 'stocks';
-    document.getElementById('statCash').textContent = fmt(cash);
-    document.getElementById('statCash').parentElement.style.display = isStocks ? '' : 'none';
     // Special 5th stat per portfolio
     const special = document.getElementById('statSpecial');
     const specialLabel = document.getElementById('statSpecialLabel');
