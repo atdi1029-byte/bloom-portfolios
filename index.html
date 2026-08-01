@@ -3722,10 +3722,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
     // PULL cloud first, merge, then enable sync
     loadFromCloud(function(cloud, serverTs) {
-        if (cloud && cloud.portfolios) {
+        if (cloud && cloud.portfolios && !localStorage.getItem('bloom_skip_cloud_aug1')) {
             mergeCloudData(cloud, true, serverTs, _bloomFreshInstall);
             renderAll();
         }
+        if (localStorage.getItem('bloom_recovered_aug1')) localStorage.setItem('bloom_skip_cloud_aug1', '1');
         // NOW enable sync — cloud state is merged, safe to push
         syncReady = true;
         refreshPrices();
