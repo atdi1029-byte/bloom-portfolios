@@ -1954,8 +1954,8 @@ function renderETFGrid() {
         const valScore = calcValuationScore(ticker);
         const noData = valScore === 0;
         const valDisplay = noData ? '--' : Math.round((1 - valScore) * 100);
-        const scoreClass = noData ? 'score-ok' : valDisplay <= 40 ? 'score-good' : valDisplay <= 60 ? 'score-ok' : 'score-bad';
-        const scoreLabel = noData ? 'No Data' : valDisplay <= 40 ? 'Undervalued' : valDisplay <= 60 ? 'Fair' : 'Overvalued';
+        const scoreClass = noData ? 'score-ok' : valDisplay <= 30 ? 'score-good' : valDisplay <= 70 ? 'score-ok' : 'score-bad';
+        const scoreLabel = noData ? 'No Data' : valDisplay <= 30 ? 'Cheap' : valDisplay <= 70 ? 'Fair' : 'Expensive';
         const drift = currentPct - targetPct;
         const barClass = Math.abs(drift) < 3 ? 'on' : drift > 0 ? 'over' : 'under';
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
@@ -3274,9 +3274,9 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const pd = data.portfolios[portfolioKey];
     let tickers = pDef.order;
     if (onlyOpps) {
-        tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.40);
+        // Flywheel: rank all tickers with prices, pick top 8 cheapest (no absolute threshold)
+        tickers = tickers.filter(t => getPrice(t) > 0);
         if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true };
-        // Flywheel: pick top 8 most undervalued
         tickers = tickers.map(t => ({ t, vs: calcValuationScore(t) })).sort((a, b) => b.vs - a.vs).slice(0, 8).map(x => x.t);
     }
     let totalVal = 0;
