@@ -1708,7 +1708,7 @@ function renderStockOppsBanner() {
         if (dismissedOpps.has(ticker)) return;
         const valScore = calcValuationScore(ticker);
         const price = getPrice(ticker);
-        if (valScore >= 0.60 && price > 0) {
+        if (valScore >= 0.40 && price > 0) {
             count++;
             tickers.push(ticker);
             if (!seenBuyOpps.has(ticker)) hasNew = true;
@@ -1769,7 +1769,7 @@ function acknowledgeBuyBanner() {
     pDef.order.forEach(ticker => {
         const valScore = calcValuationScore(ticker);
         const price = getPrice(ticker);
-        if (valScore >= 0.60 && price > 0) seenBuyOpps.add(ticker);
+        if (valScore >= 0.40 && price > 0) seenBuyOpps.add(ticker);
     });
     saveSeenBuyOpps();
     syncToCloud();
@@ -1861,7 +1861,7 @@ function renderBuyOpps() {
         const p = livePrices[ticker] || {};
         const price = p.price || 0;
         const high52 = p.high52 || 0;
-        if (valScore >= 0.60 && price > 0) {
+        if (valScore >= 0.40 && price > 0) {
             const drawdown = high52 > 0 ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
             opps.push({
                 ticker, valScore, rsi: p.rsi14 || 50, price, drawdown,
@@ -2065,7 +2065,7 @@ function renderETFGrid() {
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
         const changeStr = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
         const isDivETF = pDef.dividendReinvest.includes(ticker);
-        const isBuyOpp = valScore >= 0.60 && price > 0;
+        const isBuyOpp = valScore >= 0.40 && price > 0;
         const pnlPct = costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0;
         const isTakeProfit = pnlPct >= 50 && valScore < 0.40;
         const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
@@ -3376,10 +3376,10 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const pd = data.portfolios[portfolioKey];
     let tickers = pDef.order;
     if (onlyOpps) {
-        tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.60);
+        tickers = tickers.filter(t => getPrice(t) > 0 && calcValuationScore(t) >= 0.40);
         if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true };
-        // Flywheel: pick top 5 most undervalued
-        tickers = tickers.map(t => ({ t, vs: calcValuationScore(t) })).sort((a, b) => b.vs - a.vs).slice(0, 5).map(x => x.t);
+        // Flywheel: pick top 8 most undervalued
+        tickers = tickers.map(t => ({ t, vs: calcValuationScore(t) })).sort((a, b) => b.vs - a.vs).slice(0, 8).map(x => x.t);
     }
     let totalVal = 0;
     pDef.order.forEach(t => { totalVal += (pd.holdings[t] || { shares: 0 }).shares * getPrice(t); });
@@ -3688,17 +3688,6 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
 document.addEventListener('DOMContentLoaded', () => {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
     applyTheme(currentPortfolio);
-    // ONE-TIME DATA RECOVERY — remove after data is restored
-    if (!localStorage.getItem('bloom_recovered_aug1')) {
-        var _recov = {"portfolios":{"cushion":{"holdings":{"JPST":{"shares":30.36,"costBasis":0},"VTIP":{"shares":28.82,"costBasis":0},"SPSB":{"shares":37.74,"costBasis":0},"DGRO":{"shares":11.92,"costBasis":0},"SCHD":{"shares":19.39,"costBasis":0},"SGOV":{"shares":8.29,"costBasis":0},"VOO":{"shares":0.879479,"costBasis":0}}},"growth":{"holdings":{"VTI":{"shares":1.97,"costBasis":0},"SCHG":{"shares":15.42,"costBasis":0},"VXUS":{"shares":4.65,"costBasis":0},"AVUV":{"shares":2.45,"costBasis":0},"SCHD":{"shares":19.39,"costBasis":0},"VO":{"shares":1.08,"costBasis":0}}},"ira":{"holdings":{}},"stocks":{"holdings":{"MSFT":{"shares":0.075958,"costBasis":0},"AMZN":{"shares":0.072647,"costBasis":0},"GOOG":{"shares":0.01283,"costBasis":0},"COST":{"shares":0.021678,"costBasis":0},"NFLX":{"shares":0.436779,"costBasis":0},"GLD":{"shares":1.90,"costBasis":0},"GDX":{"shares":1.71,"costBasis":0},"SMH":{"shares":0.230825,"costBasis":0},"EWZ":{"shares":1.78,"costBasis":0},"IBIT":{"shares":2.33,"costBasis":0}}}},"cash":{},"splitterRatios":{"cushion":70,"growth":25,"ira":0,"stocks":5},"splitterTotal":"","history":[],"dividendHistory":[],"valueSnapshots":[],"lastModified":1722531600000,"migrations":{}};
-        var _rc = {portfolios:_recov.portfolios,cash:_recov.cash,splitterRatios:_recov.splitterRatios,splitterTotal:"",lastModified:_recov.lastModified,migrations:{}};
-        localStorage.setItem(SK_CORE, JSON.stringify(_rc));
-        localStorage.setItem('dca_history', JSON.stringify([]));
-        localStorage.setItem('dca_dividends', JSON.stringify([]));
-        localStorage.setItem('dca_snapshots', JSON.stringify([]));
-        localStorage.setItem('bloom_recovered_aug1', '1');
-        console.log('[Bloom] Data recovered from inline backup');
-    }
     // Detect cache-wipe: if SK_CORE doesn't exist, localStorage was cleared
     var _bloomFreshInstall = !localStorage.getItem(SK_CORE);
     // Stamp lastModified if missing on existing data
@@ -3722,11 +3711,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
     // PULL cloud first, merge, then enable sync
     loadFromCloud(function(cloud, serverTs) {
-        if (cloud && cloud.portfolios && !localStorage.getItem('bloom_skip_cloud_aug1')) {
+        if (cloud && cloud.portfolios) {
             mergeCloudData(cloud, true, serverTs, _bloomFreshInstall);
             renderAll();
         }
-        if (localStorage.getItem('bloom_recovered_aug1')) localStorage.setItem('bloom_skip_cloud_aug1', '1');
         // NOW enable sync — cloud state is merged, safe to push
         syncReady = true;
         refreshPrices();
