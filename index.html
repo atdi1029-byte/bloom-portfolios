@@ -852,8 +852,6 @@
             <button class="btn btn-green" onclick="forcePushToCloud()">↑ Push</button>
             <button class="btn" onclick="forceRestoreFromCloud()" style="background:#e8944c;color:#fff;">↓ Restore</button>
             <button class="btn btn-primary" onclick="openEditModal()">Edit Holdings</button>
-            <button class="btn btn-primary stock-opps-btn" id="stockOppsBanner" onclick="acknowledgeBuyBanner()" style="display:none;"></button>
-            <button class="btn btn-primary stock-sell-btn" id="stockSellBanner" onclick="acknowledgeSellBanner()" style="display:none;"></button>
         </div>
     </div>
 
@@ -1698,111 +1696,8 @@ function fmt(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits
 function fmtPct(n) { return n.toFixed(1) + '%'; }
 
 // ====== STOCK PICKS BUY ALERT (visible on every tab) ======
-function renderStockOppsBanner() {
-    const banner = document.getElementById('stockOppsBanner');
-    const pDef = PORTFOLIOS.stocks;
-    let count = 0;
-    const tickers = [];
-    let hasNew = false;
-    pDef.order.forEach(ticker => {
-        if (dismissedOpps.has(ticker)) return;
-        const valScore = calcValuationScore(ticker);
-        const price = getPrice(ticker);
-        if (valScore >= 0.40 && price > 0) {
-            count++;
-            tickers.push(ticker);
-            if (!seenBuyOpps.has(ticker)) hasNew = true;
-        }
-    });
-    if (count > 0) {
-        banner.textContent = count + ' Stock Pick' + (count === 1 ? '' : 's') + ' to Buy';
-        banner.classList.add('show');
-        // Only pulse if there are new (unseen) opps
-        if (hasNew) {
-            banner.classList.remove('seen');
-        } else {
-            banner.classList.add('seen');
-        }
-    } else {
-        banner.classList.remove('show');
-    }
-}
-
-// ====== STOCK SELL/TRIM ALERT (visible on every tab) ======
-function renderSellBanner() {
-    const banner = document.getElementById('stockSellBanner');
-    const pDef = PORTFOLIOS.stocks;
-    const data = loadData();
-    const pd = (data.portfolios && data.portfolios.stocks) || { holdings: {} };
-    const totalVal = pDef.order.reduce((sum, t) => {
-        const h = pd.holdings[t] || { shares: 0 };
-        return sum + h.shares * getPrice(t);
-    }, 0);
-    let count = 0;
-    const sellTickers = [];
-    let hasNew = false;
-    pDef.order.forEach(ticker => {
-        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
-        if (h.shares <= 0) return;
-        const price = getPrice(ticker);
-        const value = h.shares * price;
-        const valScore = calcValuationScore(ticker);
-        const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
-        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
-        const targetPct = pDef.targets[ticker].pct;
-        const isTakeProfit = pnlPct >= 50 && valScore < 0.40 && value > 100;
-        const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
-        if (isTakeProfit || isDriftHigh) { count++; sellTickers.push(ticker); if (!seenSellOpps.has(ticker)) hasNew = true; }
-    });
-    if (count > 0) {
-        banner.textContent = count + ' Stock' + (count === 1 ? '' : 's') + ' to Trim';
-        banner.classList.add('show');
-        if (hasNew) { banner.classList.remove('seen'); } else { banner.classList.add('seen'); }
-    } else {
-        banner.classList.remove('show');
-    }
-}
-
-function acknowledgeBuyBanner() {
-    // Mark all current buy opps as seen, stop pulse, then navigate to stocks
-    const pDef = PORTFOLIOS.stocks;
-    pDef.order.forEach(ticker => {
-        const valScore = calcValuationScore(ticker);
-        const price = getPrice(ticker);
-        if (valScore >= 0.40 && price > 0) seenBuyOpps.add(ticker);
-    });
-    saveSeenBuyOpps();
-    syncToCloud();
-    document.getElementById('portfolioSelect').value = 'stocks';
-    switchPortfolio();
-}
-function acknowledgeSellBanner() {
-    const pDef = PORTFOLIOS.stocks;
-    const data = loadData();
-    const pd = (data.portfolios && data.portfolios.stocks) || { holdings: {} };
-    const totalVal = pDef.order.reduce((sum, t) => sum + ((pd.holdings[t] || { shares: 0 }).shares * getPrice(t)), 0);
-    pDef.order.forEach(ticker => {
-        const h = pd.holdings[ticker] || { shares: 0, costBasis: 0 };
-        if (h.shares <= 0) return;
-        const price = getPrice(ticker);
-        const value = h.shares * price;
-        const valScore = calcValuationScore(ticker);
-        const pnlPct = h.costBasis > 0 ? ((value - h.costBasis) / h.costBasis * 100) : 0;
-        const currentPct = totalVal > 0 ? (value / totalVal * 100) : 0;
-        const targetPct = pDef.targets[ticker].pct;
-        if ((pnlPct >= 50 && valScore < 0.40 && value > 100) || (currentPct >= targetPct * 2 && totalVal > 1000)) seenSellOpps.add(ticker);
-    });
-    saveSeenSellOpps();
-    syncToCloud();
-    document.getElementById('portfolioSelect').value = 'stocks';
-    switchPortfolio();
-}
-
 // ====== RENDER ALL ======
 function renderAll() {
-    cleanupDismissedOpps();
-    renderStockOppsBanner();
-    renderSellBanner();
     renderBuyOpps();
     renderProgress();
     renderStats();
@@ -2057,9 +1952,10 @@ function renderETFGrid() {
         const targetDollar = pDef.hardCap > 0 ? pDef.hardCap * targetPct / 100 : totalVal * targetPct / 100;
         const barPct = targetDollar > 0 ? Math.min(100, value / targetDollar * 100) : 0;
         const valScore = calcValuationScore(ticker);
-        const valDisplay = Math.round((1 - valScore) * 100); // low = cheap, high = expensive
-        const scoreClass = valDisplay <= 40 ? 'score-good' : valDisplay <= 60 ? 'score-ok' : 'score-bad';
-        const scoreLabel = valDisplay <= 40 ? 'Undervalued' : valDisplay <= 60 ? 'Fair' : 'Overvalued';
+        const noData = valScore === 0;
+        const valDisplay = noData ? '--' : Math.round((1 - valScore) * 100);
+        const scoreClass = noData ? 'score-ok' : valDisplay <= 40 ? 'score-good' : valDisplay <= 60 ? 'score-ok' : 'score-bad';
+        const scoreLabel = noData ? 'No Data' : valDisplay <= 40 ? 'Undervalued' : valDisplay <= 60 ? 'Fair' : 'Overvalued';
         const drift = currentPct - targetPct;
         const barClass = Math.abs(drift) < 3 ? 'on' : drift > 0 ? 'over' : 'under';
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
