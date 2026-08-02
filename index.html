@@ -1576,7 +1576,8 @@ async function refreshPrices() {
                 await Promise.all(missingTickers.map(t => new Promise(resolve => {
                     jsonpFetch(API_BASE + '?action=quote&ticker=' + t, (err, resp) => {
                         if (!err && resp && resp.status === 'ok' && resp.price) {
-                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: 0, low52: 0, changePct: 0, rsi14: 50, sma50: 0, sma200: 0 };
+                            const existing = livePrices[t] || {};
+                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: existing.high52 || 0, low52: existing.low52 || 0, changePct: existing.changePct || 0, rsi14: existing.rsi14 || 50, sma50: existing.sma50 || 0, sma200: existing.sma200 || 0 };
                         }
                         resolve();
                     });
