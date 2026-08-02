@@ -2118,7 +2118,7 @@ function renderETFGrid() {
 // ====== VALUATION SCORING ======
 function calcValuationScore(ticker) {
     const p = livePrices[ticker];
-    if (!p || !p.price) return 0.5;
+    if (!p || !p.price) return 0;
     const rsi = p.rsi14 || 50;
     const rsiScore = Math.max(0, Math.min(1, (70 - rsi) / 40));
     let maScore = 0.5;
