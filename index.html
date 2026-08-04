@@ -383,6 +383,22 @@
             background: linear-gradient(135deg, #3a9e4a, #2a8538);
             color: white; border-color: #2a8538; cursor: default;
         }
+        .skip-2w-btn {
+            display: inline-block; background: transparent; border: 1px solid var(--border);
+            color: var(--text-dim); border-radius: 12px; padding: 2px 8px;
+            font-size: 0.6rem; font-weight: 600; cursor: pointer;
+            margin-left: 2px; vertical-align: middle; opacity: 0.7;
+            transition: all 0.2s ease;
+        }
+        .skip-2w-btn:hover { opacity: 1; border-color: var(--red); color: var(--red); }
+        .skipped-ticker-bar {
+            font-size: 0.65rem; color: var(--text-dim); padding: 4px 8px;
+            background: rgba(200,160,80,0.08); border-radius: 8px; margin-bottom: 6px;
+        }
+        .unskip-btn {
+            background: none; border: none; color: var(--sky); cursor: pointer;
+            font-size: 0.6rem; font-weight: 700; margin-left: 4px; text-decoration: underline;
+        }
 
         /* Stock Picks buy alert pill */
         .stock-opps-btn {
@@ -3269,6 +3285,18 @@ function updateSplitterPreview() {
 }
 function resetSplitterRatios() { saveSplitterRatios(DEFAULT_RATIOS); renderSplitterRows(); }
 
+// ====== 2-WEEK SKIP (flywheel only) ======
+const SKIP_KEY = 'dca_skips_v1';
+const SKIP_DURATION = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+function loadSkips() {
+    try { const s = JSON.parse(localStorage.getItem(SKIP_KEY) || '{}'); const now = Date.now(); const clean = {}; for (const [t, exp] of Object.entries(s)) { if (exp > now) clean[t] = exp; } if (Object.keys(clean).length !== Object.keys(s).length) localStorage.setItem(SKIP_KEY, JSON.stringify(clean)); return clean; } catch { return {}; }
+}
+function saveSkip(ticker) { const s = loadSkips(); s[ticker] = Date.now() + SKIP_DURATION; localStorage.setItem(SKIP_KEY, JSON.stringify(s)); }
+function removeSkip(ticker) { const s = loadSkips(); delete s[ticker]; localStorage.setItem(SKIP_KEY, JSON.stringify(s)); }
+function isSkipped(ticker) { const s = loadSkips(); return s[ticker] && s[ticker] > Date.now(); }
+function skipAndRerun(ticker) { saveSkip(ticker); previewSplitter(); }
+function unskipAndRerun(ticker) { removeSkip(ticker); previewSplitter(); }
+
 function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const pDef = PORTFOLIOS[portfolioKey];
     const data = loadData();
@@ -3277,7 +3305,7 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     let tickers = pDef.order;
     if (onlyOpps) {
         // Flywheel: rank all tickers with prices, pick top 8 cheapest (no absolute threshold)
-        tickers = tickers.filter(t => getPrice(t) > 0);
+        tickers = tickers.filter(t => getPrice(t) > 0 && !isSkipped(t));
         if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true };
         const ranked = tickers.map(t => {
             const p = livePrices[t] || {};
@@ -3350,11 +3378,21 @@ async function previewSplitter() {
     const body = document.getElementById('splitterResultBody');
     let html = '';
     if (redirectMsg) html += `<div style="font-size:0.65rem; color:var(--sky); padding:6px 8px; background:rgba(91,164,230,0.08); border-radius:8px; margin-bottom:8px; font-weight:600;">${redirectMsg}</div>`;
+    // Show skipped tickers bar
+    const skips = loadSkips();
+    const skippedList = Object.entries(skips).filter(([, exp]) => exp > Date.now());
+    if (skippedList.length > 0) {
+        html += `<div class="skipped-ticker-bar">Skipped: ${skippedList.map(([t, exp]) => {
+            const days = Math.ceil((exp - Date.now()) / (24*60*60*1000));
+            return `${t} (${days}d)<button class="unskip-btn" onclick="unskipAndRerun('${t}')">undo</button>`;
+        }).join(' &middot; ')}</div>`;
+    }
     const rc = { cushion: '#e88b93', growth: '#c4703a', ira: '#ff8c00', stocks: '#ff8c00' }[currentPortfolio] || '#ff8c00';
     html += results.map(r => {
         const pDef = PORTFOLIOS[r.portfolioKey];
         if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
-        return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div><div style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>`).join('')}</div>`;
+        const isStocks = r.portfolioKey === 'stocks';
+        return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div><div style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>${isStocks ? `<button class="skip-2w-btn" onclick="skipAndRerun('${a.ticker}')">skip 2w</button>` : ''}`).join('')}</div>`;
     }).join('');
     html += `<div class="splitter-result-line" style="border-top:1px solid var(--border); margin-top:4px; padding-top:6px;"><span class="splitter-result-port">Total</span><span class="splitter-result-amt" style="color:${rc}">${fmt(results.reduce((s, r) => s + r.totalAmount, 0))}</span></div>`;
     body.innerHTML = html;
