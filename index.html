@@ -3408,7 +3408,7 @@ async function previewSplitter() {
         const pDef = PORTFOLIOS[r.portfolioKey];
         if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
         const isStocks = r.portfolioKey === 'stocks';
-        const header = `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button>` : ''}<span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div>`;
+        const header = `<div class="splitter-result-line"><span style="display:flex;align-items:center;gap:6px"><span class="splitter-result-port">${pDef.name}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button>` : ''}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div>`;
         const pills = r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>${isStocks ? `<button class="skip-2w-btn" onclick="event.stopPropagation();skipAndRerun('${a.ticker}')">2w</button>` : ''}`).join('');
         return `${header}<div class="splitter-pills-wrap" style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${pills}</div>`;
     }).join('');
