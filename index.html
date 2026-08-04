@@ -384,13 +384,20 @@
             color: white; border-color: #2a8538; cursor: default;
         }
         .skip-2w-btn {
-            display: inline-block; background: transparent; border: 1px solid var(--border);
+            display: none; background: transparent; border: 1px solid var(--border);
             color: var(--text-dim); border-radius: 12px; padding: 2px 8px;
             font-size: 0.6rem; font-weight: 600; cursor: pointer;
             margin-left: 2px; vertical-align: middle; opacity: 0.7;
             transition: all 0.2s ease;
         }
+        .skip-mode .skip-2w-btn { display: inline-block; }
         .skip-2w-btn:hover { opacity: 1; border-color: var(--red); color: var(--red); }
+        .skip-toggle {
+            background: none; border: 1px solid var(--border); color: var(--text-dim);
+            border-radius: 10px; padding: 1px 8px; font-size: 0.55rem; font-weight: 600;
+            cursor: pointer; opacity: 0.6; transition: all 0.2s; margin-left: 6px;
+        }
+        .skip-toggle.active { opacity: 1; border-color: var(--red); color: var(--red); }
         .skipped-ticker-bar {
             font-size: 0.65rem; color: var(--text-dim); padding: 4px 8px;
             background: rgba(200,160,80,0.08); border-radius: 8px; margin-bottom: 6px;
@@ -3296,6 +3303,11 @@ function removeSkip(ticker) { const s = loadSkips(); delete s[ticker]; localStor
 function isSkipped(ticker) { const s = loadSkips(); return s[ticker] && s[ticker] > Date.now(); }
 function skipAndRerun(ticker) { saveSkip(ticker); previewSplitter(); }
 function unskipAndRerun(ticker) { removeSkip(ticker); previewSplitter(); }
+function toggleSkipMode(btn) {
+    btn.classList.toggle('active');
+    const wrap = btn.closest('.splitter-result-line').nextElementSibling;
+    if (wrap) wrap.classList.toggle('skip-mode');
+}
 
 function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const pDef = PORTFOLIOS[portfolioKey];
@@ -3392,7 +3404,9 @@ async function previewSplitter() {
         const pDef = PORTFOLIOS[r.portfolioKey];
         if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
         const isStocks = r.portfolioKey === 'stocks';
-        return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div><div style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>${isStocks ? `<button class="skip-2w-btn" onclick="skipAndRerun('${a.ticker}')">skip 2w</button>` : ''}`).join('')}</div>`;
+        const header = `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button>` : ''}</div>`;
+        const pills = r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>${isStocks ? `<button class="skip-2w-btn" onclick="event.stopPropagation();skipAndRerun('${a.ticker}')">2w</button>` : ''}`).join('');
+        return `${header}<div class="splitter-pills-wrap" style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${pills}</div>`;
     }).join('');
     html += `<div class="splitter-result-line" style="border-top:1px solid var(--border); margin-top:4px; padding-top:6px;"><span class="splitter-result-port">Total</span><span class="splitter-result-amt" style="color:${rc}">${fmt(results.reduce((s, r) => s + r.totalAmount, 0))}</span></div>`;
     body.innerHTML = html;
