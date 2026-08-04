@@ -1600,7 +1600,7 @@ async function refreshPrices() {
                     jsonpFetch(API_BASE + '?action=quote&ticker=' + t, (err, resp) => {
                         if (!err && resp && resp.status === 'ok' && resp.price) {
                             const existing = livePrices[t] || {};
-                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: existing.high52 || 0, low52: existing.low52 || 0, changePct: existing.changePct || 0, rsi14: existing.rsi14 || 50, sma50: existing.sma50 || 0, sma200: existing.sma200 || 0 };
+                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: existing.high52 || 0, low52: existing.low52 || 0, changePct: existing.changePct || 0, rsi14: existing.rsi14 || 50, sma50: existing.sma50 || 0, sma200: existing.sma200 || 0, dss3d: existing.dss3d || 50 };
                         }
                         resolve();
                     });
@@ -2051,7 +2051,11 @@ function calcValuationScore(ticker) {
     }
     let drawdownScore = 0.5;
     if (p.high52 > 0) drawdownScore = Math.max(0, Math.min(1, ((p.high52 - p.price) / p.high52) * 5));
-    return rsiScore * 0.35 + maScore * 0.35 + drawdownScore * 0.30;
+    let score = rsiScore * 0.35 + maScore * 0.35 + drawdownScore * 0.30;
+    // DSS 3-Day cycle bonus: sub-15 = cycle bottom, boost score
+    const dss3d = p.dss3d || 50;
+    if (dss3d < 15) score += 0.15;
+    return score;
 }
 
 // ====== SMART DCA ALGORITHM ======
