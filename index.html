@@ -398,6 +398,13 @@
             cursor: pointer; opacity: 0.6; transition: all 0.2s; margin-left: 6px;
         }
         .skip-toggle.active { opacity: 1; border-color: var(--red); color: var(--red); }
+        .flywheel-2x-btn {
+            background: none; border: 1px solid var(--leaf); color: var(--leaf);
+            border-radius: 10px; padding: 1px 8px; font-size: 0.55rem; font-weight: 700;
+            cursor: pointer; opacity: 0.7; transition: all 0.2s; margin-left: 2px;
+        }
+        .flywheel-2x-btn:hover { opacity: 1; }
+        .flywheel-2x-btn.active { opacity: 1; background: var(--leaf); color: #fff; }
         .skipped-ticker-bar {
             font-size: 0.65rem; color: var(--text-dim); padding: 4px 8px;
             background: rgba(200,160,80,0.08); border-radius: 8px; margin-bottom: 6px;
@@ -3419,13 +3426,39 @@ async function previewSplitter() {
         const pDef = PORTFOLIOS[r.portfolioKey];
         if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
         const isStocks = r.portfolioKey === 'stocks';
-        const header = `<div class="splitter-result-line"><span style="display:flex;align-items:center;gap:6px"><span class="splitter-result-port">${pDef.name}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button>` : ''}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div>`;
+        const header = `<div class="splitter-result-line"><span style="display:flex;align-items:center;gap:6px"><span class="splitter-result-port">${pDef.name}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button><button class="flywheel-2x-btn" onclick="toggleFlywheel2x(this)">2×</button>` : ''}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div>`;
         const pills = r.allocations.map(a => `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)">${a.ticker} ${fmt(a.amount)}</span>${isStocks ? `<button class="skip-2w-btn" onclick="event.stopPropagation();skipAndRerun('${a.ticker}')">2w</button>` : ''}`).join('');
         return `${header}<div class="splitter-pills-wrap" style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${pills}</div>`;
     }).join('');
     html += `<div class="splitter-result-line" style="border-top:1px solid var(--border); margin-top:4px; padding-top:6px;"><span class="splitter-result-port">Total</span><span class="splitter-result-amt" style="color:${rc}">${fmt(results.reduce((s, r) => s + r.totalAmount, 0))}</span></div>`;
     body.innerHTML = html;
     document.getElementById('splitterResult').classList.add('show');
+}
+function toggleFlywheel2x(btn) {
+    const active = btn.classList.toggle('active');
+    const pills = document.querySelectorAll('.splitter-pill[data-pkey="stocks"]');
+    pills.forEach(p => {
+        const orig = parseFloat(p.dataset.origAmount || p.dataset.amount);
+        if (!p.dataset.origAmount) { p.dataset.origAmount = p.dataset.amount; p.dataset.origShares = p.dataset.shares; }
+        const mult = active ? 2 : 1;
+        const newAmt = Math.round(orig * mult * 100) / 100;
+        const newShares = parseFloat(p.dataset.price) > 0 ? newAmt / parseFloat(p.dataset.price) : 0;
+        p.dataset.amount = newAmt;
+        p.dataset.shares = newShares;
+        if (!p.classList.contains('bought')) p.textContent = p.dataset.ticker + ' ' + fmt(newAmt);
+    });
+    // Update stocks total in header
+    const stocksResult = pendingSplitter && pendingSplitter.find(r => r.portfolioKey === 'stocks');
+    if (stocksResult) {
+        const origTotal = stocksResult.allocations.reduce((s, a) => s + a.amount, 0);
+        const displayTotal = active ? origTotal * 2 : origTotal;
+        const amtEl = btn.closest('.splitter-result-line').querySelector('.splitter-result-amt');
+        if (amtEl) amtEl.textContent = fmt(displayTotal);
+        // Update grand total
+        const allTotals = pendingSplitter.reduce((s, r) => s + (r.portfolioKey === 'stocks' ? displayTotal : r.totalAmount), 0);
+        const totalLine = document.querySelector('#splitterResultBody .splitter-result-line:last-child .splitter-result-amt');
+        if (totalLine) totalLine.textContent = fmt(allTotals);
+    }
 }
 function cancelSplitter() { pendingSplitter = null; document.getElementById('splitterResult').classList.remove('show'); }
 function buyPill(el) {
