@@ -2005,7 +2005,7 @@ function renderETFGrid() {
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
         const changeStr = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
         const isDivETF = pDef.dividendReinvest.includes(ticker);
-        const isBuyOpp = valScore >= 0.40 && price > 0;
+        const isBuyOpp = isFlywheelTab && valScore >= 0.40 && price > 0;
         const pnlPct = costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0;
         const isTakeProfit = pnlPct >= 50 && valScore < 0.40;
         const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
