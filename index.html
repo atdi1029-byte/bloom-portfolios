@@ -1207,10 +1207,11 @@ const PORTFOLIOS = {
             O:    { pct: 2,  purpose: 'Monthly dividend REIT' },
             LOW:  { pct: 3,  purpose: 'Home improvement + housing cycle' },
             TGT:  { pct: 2,  purpose: 'Retail staple + dividend' },
-            MA:   { pct: 3,  purpose: 'Payments duopoly' }
+            MA:   { pct: 3,  purpose: 'Payments duopoly' },
+            TLT:  { pct: 2,  purpose: 'Long-term treasuries / rate cycle' }
         },
-        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG', 'TSM', 'AVGO', 'XOM', 'V', 'CAT', 'INTC', 'HD', 'DIS', 'WMT', 'DELL', 'IBM', 'KO', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA'],
-        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'JPM', 'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'GDXJ', 'SMH', 'EWZ', 'IBIT', 'SLV', 'TSLA', 'CPER', 'TSM', 'AVGO', 'XOM', 'V', 'CAT', 'INTC', 'HD', 'BA', 'DIS', 'WMT', 'SLX', 'DELL', 'IBM', 'KO', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA']
+        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG', 'TSM', 'AVGO', 'XOM', 'V', 'CAT', 'INTC', 'HD', 'DIS', 'WMT', 'DELL', 'IBM', 'KO', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA', 'TLT'],
+        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'JPM', 'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'GDXJ', 'SMH', 'EWZ', 'IBIT', 'SLV', 'TSLA', 'CPER', 'TSM', 'AVGO', 'XOM', 'V', 'CAT', 'INTC', 'HD', 'BA', 'DIS', 'WMT', 'SLX', 'DELL', 'IBM', 'KO', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA', 'TLT']
     }
 };
 
@@ -1231,7 +1232,7 @@ const ETF_COLORS = {
     PG:   '#4060b0',
     SLV:  '#c0c0c8', TSLA: '#cc0000', CPER: '#b87333',
     TSM:  '#4890d0', V:    '#1a1f71', CAT:  '#f0c030', DIS:  '#1a6fb5', WMT:  '#0071ce', SLX:  '#708090', DELL: '#007db8', IBM:  '#054ada', KO:   '#f40009', JNJ:  '#d51900', WM:   '#4a7c2e', O:    '#003da5', LOW:  '#004990', TGT:  '#cc0000', MA:   '#eb001b',    INTC: '#0068b5', HD:   '#f06020', BA:   '#005daa',
-    XOM:  '#d83020'
+    XOM:  '#d83020', TLT: '#6080b0'
 };
 
 // ====== STATE ======
@@ -2286,11 +2287,14 @@ async function confirmSell() {
     await refreshPrices();
     const price = getPrice(sellTicker);
     if (price <= 0) { alert('Could not fetch price for ' + sellTicker + '. Try again.'); return; }
-    const sharesToSell = amount / price;
+    let sharesToSell = amount / price;
     const data = loadData();
     const pd = data.portfolios[currentPortfolio];
     const h = pd.holdings[sellTicker];
-    if (!h || h.shares < sharesToSell) { alert('Not enough shares'); return; }
+    if (!h || h.shares <= 0) { alert('Not enough shares'); return; }
+    // Clamp to available shares if within 1% (handles floating point / full-position sells)
+    if (sharesToSell > h.shares && sharesToSell <= h.shares * 1.01) sharesToSell = h.shares;
+    if (sharesToSell > h.shares) { alert('Not enough shares'); return; }
     const avgCost = h.shares > 0 ? h.costBasis / h.shares : 0;
     const profit = amount - sharesToSell * avgCost;
     h.shares -= sharesToSell;
