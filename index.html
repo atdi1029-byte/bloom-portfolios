@@ -2945,7 +2945,7 @@ function renderPieChart() {
     } else {
         ctx.fillStyle = '#3a3a3a'; ctx.font = 'bold 13px Quicksand'; ctx.textAlign = 'center'; ctx.fillText(fmt(total), cx, cy + 5);
     }
-    document.getElementById('pieLegend').innerHTML = slices.map(sl => {
+    document.getElementById('pieLegend').innerHTML = slices.filter(sl => sl.value > 0).map(sl => {
         const pct = total > 0 ? (sl.value / total * 100) : 0;
         return `<div class="pie-legend-item"><div class="pie-legend-dot" style="background:${sl.color}"></div><span>${sl.ticker}</span><span style="color:var(--text-dim);">${fmtPct(pct)}</span></div>`;
     }).join('');
