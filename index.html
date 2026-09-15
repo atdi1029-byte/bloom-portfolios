@@ -1225,10 +1225,17 @@ const PORTFOLIOS = {
             DECK: { pct: 2,  purpose: 'Deckers Outdoor — HOKA + UGG brands, high-growth premium footwear' },
             CL:   { pct: 2,  purpose: 'Colgate-Palmolive — global oral care + household staples, steady dividend' },
             MDLZ: { pct: 2,  purpose: 'Mondelez International — global snack giant (Oreo, Cadbury, Toblerone)' },
-            SYY:  { pct: 2,  purpose: 'Sysco Corporation — largest US food distributor, restaurant supply chain moat' }
+            SYY:  { pct: 2,  purpose: 'Sysco Corporation — largest US food distributor, restaurant supply chain moat' },
+            ROST: { pct: 2,  purpose: 'Ross Stores — off-price retail leader, treasure hunt model, recession-resistant' },
+            DLTR: { pct: 2,  purpose: 'Dollar Tree — discount variety stores, value retail play' },
+            DUK:  { pct: 2,  purpose: 'Duke Energy — regulated utility, stable dividend, defensive holding' },
+            SO:   { pct: 2,  purpose: 'Southern Company — large regulated utility, reliable income stream' },
+            WELL: { pct: 2,  purpose: 'Welltower — senior housing + healthcare REIT, aging population tailwind' },
+            DLR:  { pct: 2,  purpose: 'Digital Realty Trust — data center REIT, cloud/AI infrastructure demand' },
+            DHR:  { pct: 3,  purpose: 'Danaher Corp — life sciences + diagnostics conglomerate, serial acquirer' }
         },
-        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG', 'TSM', 'AVGO', 'XOM', 'CVX', 'V', 'CAT', 'DE', 'UNP', 'INTC', 'HD', 'DIS', 'WMT', 'DELL', 'IBM', 'KO', 'MCD', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA', 'TLT', 'BAC', 'MS', 'GS', 'SBUX', 'PEP', 'EQIX', 'HPQ'],
-        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'JPM', 'GS', 'MS', 'BAC', 'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'GDXJ', 'SIL', 'SMH', 'EWZ', 'IBIT', 'SLV', 'TSLA', 'CPER', 'TSM', 'AVGO', 'XOM', 'CVX', 'V', 'CAT', 'DE', 'UNP', 'NSC', 'INTC', 'HD', 'BA', 'DIS', 'WMT', 'SLX', 'DELL', 'IBM', 'KO', 'MCD', 'JNJ', 'CL', 'MDLZ', 'SYY', 'WM', 'O', 'EQIX', 'LOW', 'TGT', 'MA', 'TLT', 'SBUX', 'PEP', 'DECK', 'HPQ']
+        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG', 'TSM', 'AVGO', 'XOM', 'CVX', 'V', 'CAT', 'DE', 'UNP', 'INTC', 'HD', 'DIS', 'WMT', 'DELL', 'IBM', 'KO', 'MCD', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA', 'TLT', 'BAC', 'MS', 'GS', 'SBUX', 'PEP', 'EQIX', 'HPQ', 'ROST', 'DLTR', 'DUK', 'SO', 'WELL', 'DLR', 'DHR'],
+        order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'JPM', 'GS', 'MS', 'BAC', 'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'GDXJ', 'SIL', 'SMH', 'EWZ', 'IBIT', 'SLV', 'TSLA', 'CPER', 'TSM', 'AVGO', 'XOM', 'CVX', 'V', 'CAT', 'DE', 'UNP', 'NSC', 'INTC', 'HD', 'BA', 'DIS', 'WMT', 'SLX', 'DELL', 'IBM', 'KO', 'MCD', 'JNJ', 'CL', 'MDLZ', 'SYY', 'ROST', 'DLTR', 'DUK', 'SO', 'WM', 'O', 'EQIX', 'DLR', 'WELL', 'DHR', 'LOW', 'TGT', 'MA', 'TLT', 'SBUX', 'PEP', 'DECK', 'HPQ']
     }
 };
 
@@ -1250,7 +1257,8 @@ const ETF_COLORS = {
     SLV:  '#c0c0c8', TSLA: '#cc0000', CPER: '#b87333',
     TSM:  '#4890d0', V:    '#1a1f71', CAT:  '#f0c030', DIS:  '#1a6fb5', WMT:  '#0071ce', SLX:  '#708090', DELL: '#007db8', IBM:  '#054ada', KO:   '#f40009', JNJ:  '#d51900', WM:   '#4a7c2e', O:    '#003da5', LOW:  '#004990', TGT:  '#cc0000', MA:   '#eb001b',    INTC: '#0068b5', HD:   '#f06020', BA:   '#005daa',
     XOM:  '#d83020', TLT: '#6080b0', EQIX: '#d04848',
-    NSC:  '#5a8a50', DECK: '#d08040', CL:   '#e05050', MDLZ: '#6040b8', SYY:  '#3060a8'
+    NSC:  '#5a8a50', DECK: '#d08040', CL:   '#e05050', MDLZ: '#6040b8', SYY:  '#3060a8',
+    ROST: '#204080', DLTR: '#2d8c3c', DUK:  '#0072b1', SO:   '#58a060'
 };
 
 // ====== STATE ======
