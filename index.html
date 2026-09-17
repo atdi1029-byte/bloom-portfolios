@@ -1343,7 +1343,7 @@ function jsonpFetch(url, cb) {
     const script = document.createElement('script');
     let done = false;
     console.log('[Bloom JSONP] URL length:', url.length, 'action:', (url.match(/action=([^&]+)/) || [])[1]);
-    window[cbName] = function(resp) { done = true; delete window[cbName]; script.remove(); cb(null, resp); };
+    window[cbName] = function(resp) { done = true; delete window[cbName]; script.remove(); if (resp && resp.status === 'error') { console.warn('[Bloom JSONP] server error:', resp.message); cb(resp.message || 'Server error'); } else { cb(null, resp); } };
     script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
     script.onerror = function() { if (!done) { done = true; delete window[cbName]; script.remove(); console.warn('[Bloom JSONP] script.onerror fired for', (url.match(/action=([^&]+)/) || [])[1]); cb('Failed'); } };
     setTimeout(function() { if (!done) { done = true; delete window[cbName]; script.remove(); console.warn('[Bloom JSONP] Timeout for', (url.match(/action=([^&]+)/) || [])[1], 'URL len:', url.length); cb('Timeout'); } }, 45000);
