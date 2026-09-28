@@ -239,7 +239,7 @@
         /* ============ STATS BAR ============ */
         .stats-bar {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             gap: 0.75rem;
             margin-bottom: 1.25rem;
         }
@@ -436,55 +436,7 @@
             50% { opacity: 0.5; }
         }
 
-        /* ============ BUY OPPORTUNITIES ============ */
-        .buy-opps {
-            background: linear-gradient(135deg, rgba(92,140,106,0.08), rgba(138,186,150,0.12));
-            border: 1px solid var(--leaf-light);
-            border-radius: 16px;
-            padding: 1.25rem;
-            margin-bottom: 1.25rem;
-            display: none;
-        }
-        .buy-opps.show { display: block; }
-        .buy-opps-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 0.95rem;
-            color: var(--leaf);
-            font-weight: 700;
-            letter-spacing: 1px;
-            margin-bottom: 1rem;
-            animation: bloomPulse 3s infinite;
-        }
         @keyframes bloomPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.65; } }
-        .buy-opps-grid {
-            display: flex;
-            gap: 0.75rem;
-            overflow-x: auto;
-            scroll-snap-type: x mandatory;
-            -webkit-overflow-scrolling: touch;
-            padding-bottom: 0.5rem;
-            scrollbar-width: none;
-        }
-        .buy-opps-grid::-webkit-scrollbar { display: none; }
-        .buy-opp-card {
-            background: white;
-            border: 2px solid var(--leaf-light);
-            border-radius: 12px;
-            padding: 0.75rem;
-            animation: petalGlow 3s infinite;
-            min-width: 160px;
-            max-width: 180px;
-            flex-shrink: 0;
-            scroll-snap-align: start;
-        }
-        @keyframes petalGlow {
-            0%,100% { box-shadow: 0 2px 8px rgba(92,140,106,0.1); }
-            50% { box-shadow: 0 2px 20px rgba(92,140,106,0.25); }
-        }
-        .buy-opp-ticker { font-size: 1.1rem; font-weight: 700; color: var(--leaf); font-family: 'Playfair Display', serif; }
-        .buy-opp-price { font-size: 0.9rem; color: var(--text-bright); font-weight: 700; margin: 4px 0; }
-        .buy-opp-stats { font-size: 0.6rem; color: var(--text-dim); font-weight: 500; }
-        .buy-opp-stats span { color: var(--leaf); font-weight: 700; }
 
 
         /* ============ SMART DCA SECTION ============ */
@@ -638,18 +590,6 @@
             color: var(--gold);
             animation: bloomPulse 3s infinite;
         }
-        .badge-buy-opp {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.5rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: rgba(92,140,106,0.15);
-            color: var(--leaf);
-            animation: petalGlow 3s infinite;
-        }
 
         /* ============ CHARTS ============ */
         .charts-section {
@@ -681,6 +621,102 @@
         .pie-legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.6rem; font-weight: 600; }
         .pie-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 
+        /* ============ GROWTH (return curve, 4-Year Cushion ink) ============ */
+        .growth-card { padding: 0; overflow: hidden; position: relative; }
+        .growth-stage { position: relative; height: 250px; }
+        .growth-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .growth-crosshair {
+            position: absolute; top: 0; bottom: 22px; width: 1px;
+            background: rgba(212,107,115,0.35);
+            pointer-events: none; display: none; z-index: 5;
+        }
+        .growth-tooltip {
+            position: absolute; pointer-events: none; display: none; z-index: 10;
+            transform: translateX(-50%);
+            background: var(--bg-card, rgba(255,255,255,0.95));
+            border: 1px solid #f0c4c8;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(212,107,115,0.18);
+            padding: 6px 10px;
+            font-size: 0.62rem; line-height: 1.55; font-weight: 600;
+            color: var(--text); white-space: nowrap;
+        }
+        .growth-tip-date { color: var(--text-dim); font-weight: 700; }
+        .growth-head {
+            position: absolute; top: 14px; left: 18px; z-index: 6;
+            pointer-events: none; max-width: 62%;
+        }
+        .growth-title {
+            font-size: 0.55rem; font-weight: 700; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 2px;
+        }
+        .growth-value {
+            font-family: 'Playfair Display', serif; font-weight: 900;
+            font-size: 2.3rem; line-height: 1; letter-spacing: -0.01em;
+            color: #d46b73; font-variant-numeric: tabular-nums;
+        }
+        .growth-value.up { color: #5c8c6a; }
+        .growth-value.down { color: #d45a5a; }
+        .growth-head-line {
+            margin-top: 6px; font-size: 0.62rem; font-weight: 600; color: var(--text-dim);
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .growth-pill { display: inline-block; font-weight: 700; padding: 2px 9px; border-radius: 12px; }
+        .growth-pill.up { background: rgba(92,140,106,0.14); color: #4a7058; }
+        .growth-pill.down { background: rgba(212,90,90,0.12); color: #c04848; }
+        .growth-note.at-high { color: #5c8c6a; }
+        .growth-controls {
+            position: absolute; top: 12px; right: 12px; z-index: 6;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .growth-scope {
+            font-family: 'Quicksand', sans-serif; font-size: 0.55rem; font-weight: 700;
+            padding: 4px 9px; border-radius: 999px; cursor: pointer;
+            border: 1px solid #f0c4c8; background: rgba(255,240,242,0.85); color: #d46b73;
+        }
+        .growth-scope.on { background: #e88b93; color: #fff; border-color: #e88b93; }
+        .growth-range-btns {
+            position: relative; display: inline-flex; padding: 3px; border-radius: 999px;
+            background: rgba(255,240,242,0.85); border: 1px solid #f0c4c8;
+        }
+        .growth-range-ind {
+            position: absolute; top: 3px; bottom: 3px; left: 3px; width: 0; border-radius: 999px;
+            background: linear-gradient(135deg, #f5b0b8, #e88b93);
+            box-shadow: 0 1px 6px rgba(232,139,147,0.45);
+            transition: transform 0.25s cubic-bezier(.2,.8,.2,1), width 0.25s; z-index: 0;
+        }
+        .growth-range-btn {
+            position: relative; z-index: 1; border: 0; background: transparent; cursor: pointer;
+            font-family: 'Quicksand', sans-serif; font-size: 0.58rem; font-weight: 700;
+            padding: 3px 9px; border-radius: 999px; color: #b07078; transition: color 0.2s;
+        }
+        .growth-range-btn.active { color: #fff; }
+        .growth-empty {
+            position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+            text-align: center; padding: 1rem; font-size: 0.72rem; font-weight: 600; color: var(--text-dim);
+        }
+        .growth-foot {
+            display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; align-items: center;
+            padding: 0.6rem 1rem 0.75rem; border-top: 1px solid var(--border-light);
+            background: var(--petal);
+        }
+        .growth-stat-label {
+            font-size: 0.5rem; font-weight: 700; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .growth-stat-val {
+            font-family: 'Playfair Display', serif; font-size: 0.85rem; font-weight: 700;
+            color: var(--text-bright); font-variant-numeric: tabular-nums;
+        }
+        @media (max-width: 768px) {
+            .growth-stage { height: 290px; }
+            .growth-foot { display: grid; grid-template-columns: repeat(3, 1fr); }
+            .growth-value { font-size: 1.8rem; }
+            .growth-head { max-width: calc(100% - 28px); }
+            .growth-controls { position: relative; top: auto; right: auto; justify-content: flex-end; padding: 8px 10px 0; }
+        }
+        @media (prefers-reduced-motion: reduce) { .growth-range-ind { transition: none; } }
+
         /* ============ REBALANCE ALERTS ============ */
         .alert-section {
             background: var(--cream, #fef9f5);
@@ -698,8 +734,8 @@
             margin-bottom: 0.6rem;
         }
         .alert-item {
-            background: rgba(255,255,255,0.7);
-            border: 1px solid rgba(232,139,147,0.2);
+            background: var(--petal);
+            border: 1px solid var(--border-light);
             border-radius: 10px;
             padding: 0.55rem 0.7rem;
             margin-bottom: 0.45rem;
@@ -838,6 +874,7 @@
             .header h1 { font-size: 1.6rem; }
             .header h1 span { font-size: 1.8rem; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .stats-bar.three .stat-card:nth-child(3) { grid-column: 1 / -1; }
             .etf-grid { min-width: 0; }
             .charts-section { grid-template-columns: 1fr; }
             .dca-input { width: 120px; }
@@ -914,12 +951,6 @@
         </div>
     </div>
 
-    <!-- BUY OPPORTUNITIES -->
-    <div class="buy-opps" id="buyOpps">
-        <div class="buy-opps-title">Buy Opportunities</div>
-        <div class="buy-opps-grid" id="buyOppsGrid"></div>
-    </div>
-
 
     <!-- FUNDED BANNER -->
     <div class="funded-banner" id="fundedBanner">Portfolio Fully Funded!</div>
@@ -952,10 +983,6 @@
         <div class="stat-card">
             <div class="stat-label">Total Return</div>
             <div class="stat-value" id="statTotalReturn">$0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Dividends Earned</div>
-            <div class="stat-value" id="statDividends">$0</div>
         </div>
         <div class="stat-card" id="statSpecial" style="display:none;">
             <div class="stat-label" id="statSpecialLabel"></div>
@@ -1015,16 +1042,33 @@
                 <div class="pie-legend" id="pieLegend"></div>
             </div>
         </div>
-        <div class="chart-card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div class="chart-title" style="margin-bottom:0;">Growth Over Time</div>
-                <button onclick="toggleGrowthMode()" id="growthModeBtn" style="font-size:0.55rem; padding:2px 8px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.08); color:var(--text-dim); font-weight:600; cursor:pointer; font-family:'Quicksand',sans-serif;">All Portfolios</button>
+        <div class="chart-card growth-card">
+            <div class="growth-controls">
+                <button class="growth-scope" id="growthModeBtn" onclick="toggleGrowthMode()">All Portfolios</button>
+                <div class="growth-range-btns" role="tablist" aria-label="Growth range">
+                    <div class="growth-range-ind" id="growthRangeInd"></div>
+                    <button class="growth-range-btn" onclick="setGrowthRange('1M')">1M</button>
+                    <button class="growth-range-btn" onclick="setGrowthRange('3M')">3M</button>
+                    <button class="growth-range-btn" onclick="setGrowthRange('6M')">6M</button>
+                    <button class="growth-range-btn" onclick="setGrowthRange('1Y')">1Y</button>
+                    <button class="growth-range-btn active" onclick="setGrowthRange('All')">All</button>
+                </div>
             </div>
-            <div style="position:relative;">
-                <canvas id="growthChart" width="400" height="200" class="chart-canvas"></canvas>
-                <div id="growthEmpty" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; display:none; align-items:center; justify-content:center; font-size:0.75rem; color:var(--text-dim); font-weight:600; text-align:center; padding:1rem;">Make 2+ DCA contributions to see growth chart</div>
+            <div class="growth-stage" id="growthStage">
+                <canvas id="growthChart"></canvas>
+                <div class="growth-crosshair" id="growthCrosshair"></div>
+                <div class="growth-tooltip" id="growthTooltip"></div>
+                <div class="growth-head">
+                    <div class="growth-title" id="growthTitle">Total Return</div>
+                    <div class="growth-value" id="growthValue">--</div>
+                    <div class="growth-head-line">
+                        <span class="growth-pill" id="growthPill"></span>
+                        <span class="growth-note" id="growthNote"></span>
+                    </div>
+                </div>
+                <div class="growth-empty" id="growthEmpty"></div>
             </div>
-            <div style="font-size:0.5rem; color:var(--text-dim); margin-top:4px; text-align:center; font-weight:500;" id="growthLabel">Based on DCA history</div>
+            <div class="growth-foot" id="growthFoot"></div>
         </div>
     </div>
 
@@ -1114,6 +1158,8 @@ let _saveInFlight = false;
 let _savePending = false;
 let _lastPushFailed = false;
 let _syncDebounce = null;
+const MAX_HISTORY = 250;      // trades kept per list (history, dividends)
+const MAX_DELETED_IDS = 300;  // undone trade ids remembered so a sync can't bring them back
 
 // ====== PORTFOLIO DEFINITIONS ======
 const PORTFOLIOS = {
@@ -1309,6 +1355,7 @@ function _splitSave(data) {
         splitterTotal: data.splitterTotal || '',
         lastModified: data.lastModified,
         lastSyncedAt: data.lastSyncedAt,
+        deletedIds: data.deletedIds || [],
         migrations: data.migrations || {}
     };
     var coreOk = safeLocalSave(SK_CORE, JSON.stringify(core));
@@ -1351,14 +1398,16 @@ function safeLocalSave(key, payload) {
     }
 }
 
-function saveData(data, immediate) {
-    data.lastModified = Date.now();
+// keepModified: the change isn't a user edit (e.g. a daily snapshot), so it mustn't
+// make this copy look newer than the other device's real edits
+function saveData(data, immediate, keepModified) {
+    if (!keepModified) data.lastModified = Date.now();
     // Trim arrays — hard caps to control quota usage
-    if (data.history && data.history.length > 250) {
-        data.history = data.history.slice(-250);
+    if (data.history && data.history.length > MAX_HISTORY) {
+        data.history = data.history.slice(-MAX_HISTORY);
     }
-    if (data.dividendHistory && data.dividendHistory.length > 250) {
-        data.dividendHistory = data.dividendHistory.slice(-250);
+    if (data.dividendHistory && data.dividendHistory.length > MAX_HISTORY) {
+        data.dividendHistory = data.dividendHistory.slice(-MAX_HISTORY);
     }
     if (data.valueSnapshots && data.valueSnapshots.length > 365) {
         data.valueSnapshots = data.valueSnapshots.slice(-365);
@@ -1369,7 +1418,15 @@ function saveData(data, immediate) {
 }
 
 // ====== CLOUD SYNC ======
+// Saves go up as JSONP GETs (POST is blocked by ad blockers). The state is gzipped,
+// base64'd and sent in ~5 KB pieces under a per-upload id: about 5 requests instead of
+// the ~65 plain-JSON ones that took 2-3 minutes and rarely finished before the phone
+// app was closed.
 function fireGet(url) { var img = new Image(); img.src = url; }
+// Unlike a script tag or image, a keepalive fetch survives the page closing
+function _keepaliveGet(url) {
+    try { fetch(url, { mode: 'no-cors', keepalive: true }).catch(function() {}); } catch (e) { fireGet(url); }
+}
 
 function jsonpFetch(url, cb) {
     const cbName = '_bloomCb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
@@ -1383,9 +1440,15 @@ function jsonpFetch(url, cb) {
     document.head.appendChild(script);
 }
 
-// JSONP sequential chunked push with inflight guard + retry
-var CHUNK_SIZE = 1200;
+var CHUNK_SIZE = 1200;        // plain-JSON pieces, for a server that can't read gzip uploads yet
+var GZ_CHUNK_SIZE = 5000;     // base64 chars per request (Google rejects URLs over ~8 KB)
+var _UPLOAD_PARALLEL = 6;     // pieces in flight at once; the server keys them by upload id + index
 var _MAX_RETRIES = 2;
+var _gzipUnsupported = false;
+var _pulledOnce = false;      // no automatic pushes until the cloud copy has been read once
+var _lastPushedJson = null;   // payload the cloud is known to hold, so no-op saves are skipped
+var _lastPacked = null;       // latest packed upload, reused by the page-close beacon
+
 function hasRealData(data) {
     // Structural check — not content. createDefaultData() has portfolios
     // but no lastModified (never been saved by the user).
@@ -1396,14 +1459,8 @@ function hasRealData(data) {
     return true;
 }
 
-function _doCloudSave(onDone) {
-    if (_saveInFlight) { _savePending = true; if (onDone) onDone(); return; }
-    var data = loadData();
-    if (!hasRealData(data)) {
-        console.warn('[Bloom] Refusing cloud save — no real data (localStorage wiped?)');
-        if (onDone) onDone(); return;
-    }
-    var essential = {
+function _buildSavePayload(data) {
+    return {
         portfolios: data.portfolios,
         cash: data.cash || {},
         splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
@@ -1411,15 +1468,80 @@ function _doCloudSave(onDone) {
         history: data.history || [],
         dividendHistory: data.dividendHistory || [],
         valueSnapshots: data.valueSnapshots || [],
+        deletedIds: data.deletedIds || [],
         lastModified: data.lastModified || Date.now(),
         seenBuyOpps: [...seenBuyOpps],
         seenSellOpps: [...seenSellOpps],
         dismissedOpps: [...dismissedOpps]
     };
-    var json = JSON.stringify(essential);
-    var encoded = encodeURIComponent(json);
+}
+
+async function _gzipB64(str) {
+    if (typeof CompressionStream === 'undefined') return null;
+    try {
+        const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+        const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        return btoa(bin);
+    } catch (e) {
+        console.warn('[Bloom] gzip failed, sending plain JSON:', e);
+        return null;
+    }
+}
+
+async function _packForUpload(json) {
+    const b64 = _gzipUnsupported ? null : await _gzipB64(json);
+    const src = b64 || json;
+    const size = b64 ? GZ_CHUNK_SIZE : CHUNK_SIZE;
+    const chunks = [];
+    for (let i = 0; i < src.length; i += size) chunks.push(src.substring(i, i + size));
+    return { json: json, z: !!b64, chunks: chunks };
+}
+
+function _uploadId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function _isFormatError(err) { return /decompress|not valid JSON/i.test(String(err)); }
+
+// Sends the pieces a few at a time, then dca_save_done once every piece has landed
+function _sendUpload(packed, cb) {
+    var u = _uploadId(), n = packed.chunks.length;
+    var next = 0, active = 0, landed = 0, failed = false;
+    function pump() {
+        while (!failed && active < _UPLOAD_PARALLEL && next < n) sendChunk(next++, 0);
+    }
+    function sendChunk(i, tries) {
+        active++;
+        jsonpFetch(API_BASE + '?action=dca_save_chunk&u=' + u + '&i=' + i + '&cd=' + encodeURIComponent(packed.chunks[i]), function(err) {
+            active--;
+            if (failed) return;
+            if (err && tries < _MAX_RETRIES) { setTimeout(function() { sendChunk(i, tries + 1); }, 1000 * (tries + 1)); return; }
+            if (err) { failed = true; cb(err); return; }
+            if (++landed === n) finish(0); else pump();
+        });
+    }
+    function finish(tries) {
+        jsonpFetch(API_BASE + '?action=dca_save_done&u=' + u + '&n=' + n + (packed.z ? '&z=1' : ''), function(err, resp) {
+            if (err && tries < _MAX_RETRIES && !_isFormatError(err)) { setTimeout(function() { finish(tries + 1); }, 1000 * (tries + 1)); return; }
+            cb(err, resp);
+        });
+    }
+    pump();
+}
+
+function _doCloudSave(onDone, force) {
+    if (_saveInFlight) { _savePending = true; if (onDone) onDone(); return; }
+    // Until the cloud copy has been read, this device may be missing the other one's
+    // changes; its own edits stay local and go up after the first successful pull.
+    if (!_pulledOnce && !force) { if (onDone) onDone(); return; }
+    var data = loadData();
+    if (!hasRealData(data)) {
+        console.warn('[Bloom] Refusing cloud save — no real data (localStorage wiped?)');
+        if (onDone) onDone(); return;
+    }
+    var json = JSON.stringify(_buildSavePayload(data));
+    if (!force && json === _lastPushedJson) { if (onDone) onDone(); return; } // cloud already has it
     _saveInFlight = true;
-    console.log('[Bloom] Save data: JSON=' + json.length + ' encoded=' + encoded.length + ' mode=' + (encoded.length < 7000 ? 'single' : 'chunked(' + Math.ceil(json.length / 1200) + ' chunks)'));
+    var t0 = Date.now();
     function _finishSave(err) {
         _saveInFlight = false;
         var dot = document.getElementById('statusDot');
@@ -1428,66 +1550,33 @@ function _doCloudSave(onDone) {
             _lastPushFailed = true;
             console.warn('[Bloom] Cloud save failed:', err);
             if (dot) dot.className = 'status-dot error';
-            if (txt) txt.textContent = 'Save failed — tap Restore';
-            var rb = document.getElementById('restoreBtn');
-            if (rb) rb.style.display = '';
+            if (txt) txt.textContent = 'Save failed — retrying';
         } else {
             _lastPushFailed = false;
+            _lastPushedJson = json;
+            console.log('[Bloom] Saved in ' + ((Date.now() - t0) / 1000).toFixed(1) + 's');
             if (dot) dot.className = 'status-dot ok';
-            if (txt) txt.textContent = 'Saved';
+            if (txt) txt.textContent = 'Saved ' + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         }
         if (_savePending) { _savePending = false; _doCloudSave(); }
         if (onDone) onDone(err);
     }
-    if (encoded.length < 7000) {
-        var _singleRetry = 0;
-        function _trySingle() {
-            jsonpFetch(API_BASE + '?action=save_dca_data&data=' + encoded, function(err) {
-                if (err && _singleRetry < _MAX_RETRIES) {
-                    _singleRetry++;
-                    console.warn('[Bloom] Single save retry ' + _singleRetry);
-                    setTimeout(_trySingle, 1000 * _singleRetry);
-                } else {
-                    _finishSave(err);
+    function attempt() {
+        _packForUpload(json).then(function(packed) {
+            _lastPacked = packed;
+            console.log('[Bloom] Save: JSON=' + json.length + ' → ' + packed.chunks.length + (packed.z ? ' gzip' : ' plain') + ' piece(s)');
+            _sendUpload(packed, function(err) {
+                if (err && packed.z && _isFormatError(err)) {
+                    console.warn('[Bloom] Server can\'t read gzip uploads yet — sending plain JSON');
+                    _gzipUnsupported = true;
+                    attempt();
+                    return;
                 }
+                _finishSave(err);
             });
-        }
-        _trySingle();
-    } else {
-        var chunks = [];
-        for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
-        var idx = 0;
-        var _chunkRetries = 0;
-        function sendNext() {
-            if (idx >= chunks.length) {
-                jsonpFetch(API_BASE + '?action=dca_save_done&n=' + chunks.length, function(err) {
-                    if (err && _chunkRetries < _MAX_RETRIES) {
-                        _chunkRetries++;
-                        console.warn('[Bloom] dca_save_done retry ' + _chunkRetries);
-                        setTimeout(sendNext, 1000 * _chunkRetries);
-                    } else {
-                        _finishSave(err);
-                    }
-                });
-                return;
-            }
-            var url = API_BASE + '?action=dca_save_chunk&i=' + idx + '&cd=' + encodeURIComponent(chunks[idx]);
-            jsonpFetch(url, function(err) {
-                if (err && _chunkRetries < _MAX_RETRIES) {
-                    _chunkRetries++;
-                    console.warn('[Bloom] Chunk ' + idx + ' retry ' + _chunkRetries);
-                    setTimeout(sendNext, 1000 * _chunkRetries);
-                } else if (err) {
-                    _finishSave(err);
-                } else {
-                    _chunkRetries = 0;
-                    idx++;
-                    sendNext();
-                }
-            });
-        }
-        sendNext();
+        }).catch(function(e) { _finishSave(e && e.message ? e.message : String(e)); });
     }
+    attempt();
 }
 
 function syncToCloud(immediate) {
@@ -1496,57 +1585,39 @@ function syncToCloud(immediate) {
     if (immediate) {
         _doCloudSave();
     } else {
-        // Always push directly — merge-before-push was overwriting local edits
-        // when cloud had stale data (push failures on bad WiFi)
         _syncDebounce = setTimeout(function() { _doCloudSave(); }, 1500);
     }
 }
 
+// Pull, merge, and push back only if this device has something the cloud doesn't
 function mergeFromCloud(showFeedback, onComplete) {
     loadFromCloud(function(cloud, serverTs) {
-        if (cloud) mergeCloudData(cloud, false, serverTs);
+        var res = cloud ? mergeCloudData(cloud, false, serverTs) : null;
         if (showFeedback) renderAll();
+        if (res && res.needsPush) syncToCloud();
         if (onComplete) onComplete();
     });
 }
 
+// Page closing: re-send the latest packed upload with keepalive so it can outlive the page.
+// Only an already-packed state can go (gzip is async). Anything that doesn't make it is
+// still on this device and goes up the next time the app opens.
 function beaconSave() {
+    if (!_pulledOnce) return;
     var data = loadData();
     if (!hasRealData(data)) return;
-    var essential = {
-        portfolios: data.portfolios,
-        cash: data.cash || {},
-        splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
-        splitterTotal: data.splitterTotal || '',
-        history: data.history || [],
-        dividendHistory: data.dividendHistory || [],
-        valueSnapshots: data.valueSnapshots || [],
-        lastModified: data.lastModified || Date.now(),
-        seenBuyOpps: [...seenBuyOpps],
-        seenSellOpps: [...seenSellOpps],
-        dismissedOpps: [...dismissedOpps]
-    };
-    var json = JSON.stringify(essential);
-    var encoded = encodeURIComponent(json);
-    // Use fetch with keepalive for reliable page-hide saves
-    if (encoded.length < 7000) {
-        try {
-            fetch(API_BASE + '?action=save_dca_data&data=' + encoded, { method: 'GET', keepalive: true });
-        } catch(e) { fireGet(API_BASE + '?action=save_dca_data&data=' + encoded); }
-    } else {
-        // Chunked: send sequentially via image tags (keepalive has 64KB limit)
-        var chunks = [];
-        for (var i = 0; i < json.length; i += CHUNK_SIZE) chunks.push(json.substring(i, i + CHUNK_SIZE));
-        for (var j = 0; j < chunks.length; j++) {
-            fireGet(API_BASE + '?action=dca_save_chunk&i=' + j + '&cd=' + encodeURIComponent(chunks[j]));
-        }
-        // Delay done signal to give chunks time to arrive
-        setTimeout(function() {
-            fireGet(API_BASE + '?action=dca_save_done&n=' + chunks.length);
-        }, chunks.length * 200);
-    }
+    var json = JSON.stringify(_buildSavePayload(data));
+    if (json === _lastPushedJson) return;
+    var packed = _lastPacked;
+    if (!packed || packed.json !== json || packed.chunks.length > 12) return;
+    var u = _uploadId();
+    packed.chunks.forEach(function(c, i) {
+        _keepaliveGet(API_BASE + '?action=dca_save_chunk&u=' + u + '&i=' + i + '&cd=' + encodeURIComponent(c));
+    });
+    _keepaliveGet(API_BASE + '?action=dca_save_done&u=' + u + '&n=' + packed.chunks.length + (packed.z ? '&z=1' : ''));
 }
 
+// cb(cloudData, lastSaved, status) — status is 'ok', 'empty' (nothing stored yet) or 'failed'
 function loadFromCloud(cb, _attempt) {
     _attempt = _attempt || 1;
     jsonpFetch(API_BASE + '?action=load_dca_data', function(err, result) {
@@ -1560,25 +1631,27 @@ function loadFromCloud(cb, _attempt) {
                 var txt = document.getElementById('statusText');
                 if (dot) dot.className = 'status-dot error';
                 if (txt) txt.textContent = 'Cloud sync failed';
-                var rb = document.getElementById('restoreBtn');
-                if (rb) rb.style.display = '';
-                cb(null, null);
+                cb(null, null, 'failed');
             }
             return;
         }
         if (result.status === 'ok' && result.data) {
             try {
                 var parsed = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-                cb(parsed, result.lastSaved || null);
+                _pulledOnce = true;
+                cb(parsed, result.lastSaved || null, 'ok');
             } catch(e) {
                 console.error('[Bloom] Cloud data JSON parse failed:', e.message);
                 var dot = document.getElementById('statusDot');
                 var txt = document.getElementById('statusText');
                 if (dot) dot.className = 'status-dot error';
                 if (txt) txt.textContent = 'Cloud data corrupted';
-                cb(null, null);
+                cb(null, null, 'failed');
             }
-        } else { cb(null, null); }
+        } else if (result.status === 'empty') {
+            _pulledOnce = true;
+            cb(null, null, 'empty');
+        } else { cb(null, null, 'failed'); }
     });
 }
 
@@ -1619,7 +1692,7 @@ function forcePushToCloud() {
         _doCloudSave(function(err2) {
             if (dot) dot.className = err2 ? 'status-dot error' : 'status-dot ok';
             if (txt) txt.textContent = err2 ? 'Push failed: ' + err2 : 'Pushed!';
-        });
+        }, true);
     });
 }
 
@@ -1643,7 +1716,7 @@ function forceRestoreFromCloud() {
 }
 
 function createDefaultData() {
-    const data = { portfolios: {}, history: [], dividendHistory: [], splitterRatios: { ...DEFAULT_RATIOS }, splitterTotal: '', migrations: {} };
+    const data = { portfolios: {}, history: [], dividendHistory: [], splitterRatios: { ...DEFAULT_RATIOS }, splitterTotal: '', deletedIds: [], migrations: {} };
     for (const [key, pDef] of Object.entries(PORTFOLIOS)) {
         data.portfolios[key] = { holdings: {} };
         for (const ticker of pDef.order) {
@@ -1679,7 +1752,7 @@ async function refreshPrices() {
                     jsonpFetch(API_BASE + '?action=quote&ticker=' + t, (err, resp) => {
                         if (!err && resp && resp.status === 'ok' && resp.price) {
                             const existing = livePrices[t] || {};
-                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: existing.high52 || 0, low52: existing.low52 || 0, changePct: existing.changePct || 0, rsi14: existing.rsi14 || 50, sma50: existing.sma50 || 0, sma200: existing.sma200 || 0, dss3d: existing.dss3d || 50 };
+                            livePrices[t] = { ticker: t, price: Number(resp.price) || 0, high52: existing.high52 || 0, low52: existing.low52 || 0, changePct: existing.changePct || 0, rsi14: existing.rsi14 ?? 50, sma50: existing.sma50 || 0, sma200: existing.sma200 || 0, dss3d: existing.dss3d ?? 50 };
                         }
                         resolve();
                     });
@@ -1689,6 +1762,19 @@ async function refreshPrices() {
             dot.className = 'status-dot ok';
             txt.textContent = 'Live';
             localStorage.setItem('dca_prices_cache', JSON.stringify({ ts: Date.now(), prices: livePrices }));
+            // RSI/SMA/DSS come from a daily server refresh; if that stops, say so instead of
+            // quietly scoring on old numbers
+            const techAge = data.techUpdated ? (Date.now() - new Date(data.techUpdated).getTime()) / 86400000 : 0;
+            const banner = document.getElementById('errorBanner');
+            if (techAge > 3) {
+                banner.textContent = 'Buy signals (RSI, moving averages, DSS) are ' + Math.floor(techAge) + ' days old — the daily technicals refresh last ran ' +
+                    new Date(data.techUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '.';
+                banner.style.display = 'block';
+                banner.dataset.stale = '1';
+            } else if (banner.dataset.stale) {
+                banner.style.display = 'none';
+                delete banner.dataset.stale;
+            }
         } else { throw new Error(data.message || 'Bad response'); }
     } catch (err) {
         console.error('Price fetch error:', err);
@@ -1720,7 +1806,7 @@ async function refreshPrices() {
 function recordValueSnapshot() {
     const data = loadData();
     if (!data.valueSnapshots) data.valueSnapshots = [];
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC, same as the server's snapshot)
     // Skip if already recorded today
     if (data.valueSnapshots.length > 0 && data.valueSnapshots[data.valueSnapshots.length - 1].date === today) return;
     // Need at least one live price to record
@@ -1742,7 +1828,7 @@ function recordValueSnapshot() {
     data.valueSnapshots.push(snap);
     // Keep max 365 days
     if (data.valueSnapshots.length > 365) data.valueSnapshots = data.valueSnapshots.slice(-365);
-    saveData(data);
+    saveData(data, false, true); // a snapshot isn't an edit
 }
 
 // ====== GETTERS ======
@@ -1789,19 +1875,11 @@ function spendCash(amount) {
     saveData(data);
     return spent;
 }
-function getTotalDividends() {
-    const data = loadData();
-    let total = 0;
-    data.dividendHistory.filter(d => d.portfolio === currentPortfolio).forEach(d => { total += d.amount; });
-    return total;
-}
 function fmt(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtPct(n) { return n.toFixed(1) + '%'; }
 
-// ====== STOCK PICKS BUY ALERT (visible on every tab) ======
 // ====== RENDER ALL ======
 function renderAll() {
-    renderBuyOpps();
     renderProgress();
     renderStats();
     renderETFGrid();
@@ -1814,127 +1892,21 @@ function renderAll() {
     document.querySelectorAll('.etf-card').forEach(c => { c.style.background = theme.cardGrad; });
 }
 
-// ====== BUY OPPORTUNITIES ======
-// Persist dismissed opps in localStorage — auto-reset when stock leaves buy territory
-const dismissedOpps = new Set(JSON.parse(localStorage.getItem('bloom_dismissed_opps') || '[]'));
-const seenBuyOpps = new Set(JSON.parse(localStorage.getItem('bloom_seen_buy_opps') || '[]'));
-const seenSellOpps = new Set(JSON.parse(localStorage.getItem('bloom_seen_sell_opps') || '[]'));
+// Opp flags from the old Buy Opportunities section (removed Sep 2026). Still synced so
+// older copies of the app keep their data; nothing reads them now.
+// These run as the page loads, so a corrupted value must not stop the whole app
+function _readSet(key) {
+    try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); }
+    catch (e) { console.warn('[Bloom] Ignoring unreadable ' + key, e); return new Set(); }
+}
+function _writeSet(key, set) { try { localStorage.setItem(key, JSON.stringify([...set])); } catch (e) {} }
+const dismissedOpps = _readSet('bloom_dismissed_opps');
+const seenBuyOpps = _readSet('bloom_seen_buy_opps');
+const seenSellOpps = _readSet('bloom_seen_sell_opps');
 
-function saveDismissedOpps() { localStorage.setItem('bloom_dismissed_opps', JSON.stringify([...dismissedOpps])); }
-function saveSeenBuyOpps() { localStorage.setItem('bloom_seen_buy_opps', JSON.stringify([...seenBuyOpps])); }
-function saveSeenSellOpps() { localStorage.setItem('bloom_seen_sell_opps', JSON.stringify([...seenSellOpps])); }
-
-function dismissOpp(ticker) {
-    dismissedOpps.add(ticker);
-    saveDismissedOpps();
-    syncToCloud();
-    renderBuyOpps();
-}
-
-// Clean up dismissed opps: if a stock is no longer a buy opp, remove from dismissed so it can reappear fresh
-function cleanupDismissedOpps() {
-    let changed = false;
-    dismissedOpps.forEach(ticker => {
-        const p = livePrices[ticker];
-        if (!p || !p.price || (!p.sma50 && !p.sma200)) return; // skip until real data is loaded
-        if (calcValuationScore(ticker) < 0.40) { dismissedOpps.delete(ticker); changed = true; }
-    });
-    if (changed) { saveDismissedOpps(); syncToCloud(); }
-}
-
-function renderBuyOpps() {
-    const pDef = getPortfolioDef();
-    const section = document.getElementById('buyOpps');
-    const grid = document.getElementById('buyOppsGrid');
-    if (currentPortfolio !== 'stocks') { section.classList.remove('show'); return; }
-    cleanupDismissedOpps();
-    const opps = [];
-    const scanned = new Set();
-    pDef.order.forEach(ticker => {
-        scanned.add(ticker);
-        if (dismissedOpps.has(ticker)) return;
-        const valScore = calcValuationScore(ticker);
-        const p = livePrices[ticker] || {};
-        const price = p.price || 0;
-        const high52 = p.high52 || 0;
-        if (valScore >= 0.40 && price > 0) {
-            const drawdown = high52 > 0 ? ((high52 - price) / high52 * 100).toFixed(1) : 0;
-            opps.push({
-                ticker, valScore, rsi: p.rsi14 || 50, price, drawdown,
-                purpose: pDef.targets[ticker].purpose
-            });
-        }
-    });
-    if (opps.length === 0) { section.classList.remove('show'); return; }
-    section.classList.add('show');
-    const sorted = opps.sort((a, b) => b.valScore - a.valScore);
-    const top5 = sorted.slice(0, 5).map(o => o.ticker);
-    const top5Btns = top5.length >= 2 ? `
-        <div style="display:flex; gap:6px; margin-bottom:0.75rem; flex-wrap:wrap; align-items:center;">
-            <span style="font-size:0.6rem; color:var(--text-dim); font-weight:600; text-transform:uppercase; letter-spacing:1px;">Buy Top ${Math.min(5, top5.length)}</span>
-            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopN(${JSON.stringify(top5)}, 15)">$15</button>
-            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopN(${JSON.stringify(top5)}, 25)">$25</button>
-            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopN(${JSON.stringify(top5)}, 50)">$50</button>
-            <button class="btn btn-green" style="font-size:0.6rem; padding:4px 12px;" onclick="buyTopNCustom(${JSON.stringify(top5)})">$?</button>
-        </div>` : '';
-    grid.innerHTML = top5Btns + sorted.map(o => `
-        <div class="buy-opp-card" style="position:relative;">
-            <div onclick="dismissOpp('${o.ticker}')" style="position:absolute; top:4px; right:8px; cursor:pointer; font-size:1.1rem; color:var(--text-dim); line-height:1;">&times;</div>
-            <div class="buy-opp-ticker">${o.ticker}</div>
-            <div style="font-size:0.55rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${o.purpose}</div>
-            <div class="buy-opp-price">${fmt(o.price)}</div>
-            <div class="buy-opp-stats">
-                RSI <span>${o.rsi.toFixed(0)}</span> &bull;
-                ${o.drawdown > 0 ? o.drawdown + '% off high' : ''} &bull;
-                Score <span>${Math.max(0, Math.round((1 - o.valScore) * 100))}</span>
-            </div>
-            <div style="display:flex; gap:4px; margin-top:0.5rem;">
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 10)">$10</button>
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 20)">$20</button>
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuy('${o.ticker}', 50)">$50</button>
-                <button class="btn btn-green" style="flex:1; font-size:0.55rem; padding:4px;" onclick="quickBuyCustom('${o.ticker}')">$?</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-async function quickBuy(ticker, amount) {
-    await refreshPrices(); // Fresh prices before calculating shares
-    const price = getPrice(ticker);
-    if (price <= 0) return;
-    const shares = amount / price;
-    const data = loadData();
-    const pd = data.portfolios[currentPortfolio];
-    if (!pd.holdings) pd.holdings = {};
-    if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0 };
-    pd.holdings[ticker].shares += shares;
-    pd.holdings[ticker].costBasis += amount;
-    if (!data.cash) data.cash = {};
-    const cashAvail = data.cash[currentPortfolio] || 0;
-    const fromCash = Math.min(amount, cashAvail);
-    if (fromCash > 0) data.cash[currentPortfolio] = cashAvail - fromCash;
-    data.history.push({ id: 'buy_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }], cashUsed: fromCash });
-    saveData(data, true);
-    renderAll();
-}
-
-async function buyTopN(tickers, totalAmount) {
-    await refreshPrices();
-    const perTicker = totalAmount / tickers.length;
-    for (const ticker of tickers) await quickBuy(ticker, perTicker);
-}
-async function buyTopNCustom(tickers) {
-    const amount = prompt('Buy top ' + tickers.length + ' — Enter total dollar amount:');
-    if (!amount) return;
-    const val = parseFloat(amount.replace(/,/g, ''));
-    if (val > 0) await buyTopN(tickers, val);
-}
-async function quickBuyCustom(ticker) {
-    const amount = prompt('Buy ' + ticker + ' — Enter dollar amount:');
-    if (!amount) return;
-    const val = parseFloat(amount.replace(/,/g, ''));
-    if (val > 0) await quickBuy(ticker, val);
-}
+function saveDismissedOpps() { _writeSet('bloom_dismissed_opps', dismissedOpps); }
+function saveSeenBuyOpps() { _writeSet('bloom_seen_buy_opps', seenBuyOpps); }
+function saveSeenSellOpps() { _writeSet('bloom_seen_sell_opps', seenSellOpps); }
 
 
 // ====== PROGRESS BAR ======
@@ -1972,7 +1944,6 @@ function renderStats() {
     const retEl = document.getElementById('statTotalReturn');
     retEl.textContent = (totalRet >= 0 ? '+' : '') + fmt(totalRet);
     retEl.className = 'stat-value ' + (totalRet >= 0 ? 'green' : 'red');
-    document.getElementById('statDividends').textContent = fmt(getTotalDividends());
     // Special 5th stat per portfolio
     const special = document.getElementById('statSpecial');
     const specialLabel = document.getElementById('statSpecialLabel');
@@ -2010,6 +1981,7 @@ function renderStats() {
     } else {
         special.style.display = 'none';
     }
+    special.parentElement.classList.toggle('three', special.style.display === 'none');
     const cashInfo = document.getElementById('dcaCashInfo');
     const cashCheckbox = document.getElementById('dcaUseCash').parentElement;
     const isStocks = currentPortfolio === 'stocks';
@@ -2047,7 +2019,7 @@ function renderETFGrid() {
         const targetPct = target.pct;
         const pInfo = livePrices[ticker] || {};
         const changePct = pInfo.changePct || 0;
-        const rsi = pInfo.rsi14 || 50;
+        const rsi = pInfo.rsi14 ?? 50;
         const costBasis = h.costBasis || 0;
         const unrealizedPnL = value - costBasis;
         const targetDollar = pDef.hardCap > 0 ? pDef.hardCap * targetPct / 100 : totalVal * targetPct / 100;
@@ -2063,13 +2035,11 @@ function renderETFGrid() {
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
         const changeStr = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
         const isDivETF = pDef.dividendReinvest.includes(ticker);
-        const isBuyOpp = isFlywheelTab && valScore >= 0.40 && price > 0;
         const pnlPct = costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0;
         const isTakeProfit = pnlPct >= 50 && valScore < 0.40;
         const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
         const trimAmount = isDriftHigh ? value - (totalVal * targetPct / 100) : 0;
         let badgesHtml = '';
-        if (isBuyOpp) badgesHtml += '<span class="badge-buy-opp">Buy Opportunity</span> ';
         if (isTakeProfit) badgesHtml += '<span class="badge-take-profit">Take Profit (' + pnlPct.toFixed(0) + '%)</span> ';
         if (isDriftHigh) badgesHtml += '<span class="badge-take-profit">Trim ' + fmt(trimAmount) + '</span> ';
         const card = document.createElement('div');
@@ -2867,8 +2837,8 @@ function undoTransaction(historyId) {
             pd.holdings[h.ticker].shares += h.shares;
             pd.holdings[h.ticker].costBasis += avgCost * h.shares;
         }
-        // Remove cash that was added from the sell
-        if (data.cash && data.cash[h.portfolio]) {
+        // Remove cash that was added from the sell (rebalance sells never added any)
+        if (!_isRebalanceSell(h) && data.cash && data.cash[h.portfolio]) {
             data.cash[h.portfolio] = Math.max(0, data.cash[h.portfolio] - h.totalAmount);
         }
     } else {
@@ -2887,6 +2857,7 @@ function undoTransaction(historyId) {
         }
     }
     data.history.splice(idx, 1);
+    data.deletedIds = [...(data.deletedIds || []), h.id].slice(-MAX_DELETED_IDS); // so a sync can't bring it back
     saveData(data, true);
     renderAll();
 }
@@ -2906,6 +2877,7 @@ function undoDividend(ticker, dateStr) {
         if (pd.holdings[targetTicker].shares < 0.0001) { pd.holdings[targetTicker].shares = 0; pd.holdings[targetTicker].costBasis = 0; }
     }
     data.dividendHistory.splice(idx, 1);
+    if (d.id) data.deletedIds = [...(data.deletedIds || []), d.id].slice(-MAX_DELETED_IDS);
     saveData(data, true);
     renderAll();
 }
@@ -3028,278 +3000,394 @@ function renderPieChart() {
 })();
 
 // ====== GROWTH CHART ======
-let growthTimeline = [];
-let growthXFn = null, growthYFn = null, growthPad = null, growthMaxVal = 0;
-let growthScrubIdx = -1; // -1 = no scrub active
-let growthShowAll = false; // false = current portfolio, true = all combined
+// ====== GROWTH OVER TIME ======
+// Total return (value minus what you put in) over time, from the daily snapshots plus a
+// live point for right now. A DCA moves value and cost together, so deposits don't show up
+// as growth: the curve only moves when the market does. Same idea as the crypto app's P&L
+// chart, drawn in 4-Year Cushion ink.
+let growthShowAll = false;   // false = current portfolio, true = all four combined
+let growthRange = 'All';
+let growthSeries = [];       // points currently drawn
+let growthXs = [], growthYs = [];
+let growthPad = { top: 0, right: 0, bottom: 0, left: 0 };
+let growthAnimFrame = null;
+let growthHasAnimated = false;
+const GROWTH_REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GROWTH_INK = { line: '#d46b73', rgb: '232,139,147', lossRgb: '212,90,90', up: '#5c8c6a', down: '#d45a5a' };
 
-function drawGrowthBase(ctx) {
-    const timeline = growthTimeline;
-    const xFn = growthXFn, yFn = growthYFn, pad = growthPad;
-    const w = 400, h = 200;
-    ctx.clearRect(0, 0, w, h);
-    if (timeline.length < 2) return;
-    // Grid
-    ctx.strokeStyle = '#f0e0e0'; ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 4; i++) {
-        const plotH = h - pad.top - pad.bottom;
-        const yy = pad.top + (plotH / 4) * i;
-        ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(w - pad.right, yy); ctx.stroke();
-        ctx.fillStyle = '#9a8e8e'; ctx.font = '600 9px Quicksand'; ctx.textAlign = 'right';
-        const labelVal = growthMaxVal * (1 - i / 4);
-        const labelStr = labelVal >= 1000 ? '$' + (labelVal / 1000).toFixed(1) + 'k' : '$' + Math.round(labelVal);
-        ctx.fillText(labelStr, pad.left - 4, yy + 3);
-    }
-    // Clip to chart area so old peaks above Y-axis max are clipped
-    ctx.save();
-    ctx.beginPath(); ctx.rect(pad.left, pad.top, w - pad.left - pad.right, h - pad.top - pad.bottom); ctx.clip();
-    // Cost basis line
-    ctx.setLineDash([4, 3]); ctx.strokeStyle = '#c0b0b0'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.invested)) : ctx.lineTo(xFn(t.date), yFn(t.invested)); }); ctx.stroke(); ctx.setLineDash([]);
-    // Value line
-    ctx.strokeStyle = '#e88b93'; ctx.lineWidth = 2;
-    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); }); ctx.stroke();
-    // Dots at each data point
-    timeline.forEach(t => {
-        ctx.beginPath(); ctx.arc(xFn(t.date), yFn(t.total), 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#e88b93'; ctx.fill();
-    });
-    // Fill
-    ctx.globalAlpha = 0.12; ctx.fillStyle = '#e88b93';
-    ctx.beginPath(); timeline.forEach((t, i) => { i === 0 ? ctx.moveTo(xFn(t.date), yFn(t.total)) : ctx.lineTo(xFn(t.date), yFn(t.total)); });
-    ctx.lineTo(xFn(timeline[timeline.length - 1].date), yFn(0)); ctx.lineTo(xFn(timeline[0].date), yFn(0)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.restore();
-    // Dates — show day when range is short, month+year when long
-    ctx.fillStyle = '#9a8e8e'; ctx.font = '600 8px Quicksand'; ctx.textAlign = 'center';
-    const dayRange = (timeline[timeline.length - 1].date - timeline[0].date) / 86400000;
-    const dateFmt = dayRange < 90 ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' };
-    ctx.fillText(timeline[0].date.toLocaleDateString('en-US', dateFmt), xFn(timeline[0].date), h - 4);
-    ctx.fillText(timeline[timeline.length - 1].date.toLocaleDateString('en-US', dateFmt), xFn(timeline[timeline.length - 1].date), h - 4);
+function fmtSigned(v) {
+    return (v < 0 ? '−$' : '+$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-function drawGrowthScrub(ctx, idx) {
-    const t = growthTimeline[idx];
-    const xFn = growthXFn, yFn = growthYFn, pad = growthPad;
-    const w = 400, h = 200;
-    const px = xFn(t.date), pyVal = yFn(t.total), pyCost = yFn(t.invested);
-    // Vertical crosshair
-    ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(100,80,80,0.4)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(px, pad.top); ctx.lineTo(px, h - pad.bottom); ctx.stroke(); ctx.setLineDash([]);
-    // Dots
-    ctx.beginPath(); ctx.arc(px, pyVal, 4, 0, Math.PI * 2); ctx.fillStyle = '#e88b93'; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.beginPath(); ctx.arc(px, pyCost, 4, 0, Math.PI * 2); ctx.fillStyle = '#c0b0b0'; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
-    // Tooltip
-    const dateStr = t.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-    const valStr = fmt(t.total);
-    const costStr = fmt(t.invested);
-    const retPct = t.invested > 0 ? ((t.total - t.invested) / t.invested * 100).toFixed(1) : '0.0';
-    const retSign = t.total >= t.invested ? '+' : '';
-    const lines = [dateStr, 'Value: ' + valStr, 'Cost: ' + costStr, 'Return: ' + retSign + retPct + '%'];
-    ctx.font = '600 9px Quicksand';
-    const maxLineW = Math.max(...lines.map(l => ctx.measureText(l).width));
-    const boxW = maxLineW + 14, boxH = lines.length * 13 + 10;
-    let bx = px + 10;
-    if (bx + boxW > w - 4) bx = px - boxW - 10;
-    let by = Math.max(pad.top, pyVal - boxH / 2);
-    if (by + boxH > h - pad.bottom) by = h - pad.bottom - boxH;
-    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.strokeStyle = 'rgba(180,160,160,0.5)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.roundRect(bx, by, boxW, boxH, 6); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#3a3a3a'; ctx.textAlign = 'left';
-    lines.forEach((l, i) => {
-        if (i === 0) ctx.font = 'bold 9px Quicksand';
-        else if (i === 3) { ctx.fillStyle = t.total >= t.invested ? '#5c8c6a' : '#c05050'; ctx.font = 'bold 9px Quicksand'; }
-        else ctx.font = '600 9px Quicksand';
-        ctx.fillText(l, bx + 7, by + 13 + i * 13);
-    });
+function growthDateLabel(p, withYear) {
+    const [y, m, d] = p.date.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', withYear ? { month: 'short', day: 'numeric', year: 'numeric' } : { month: 'short', day: 'numeric' });
 }
 
 function toggleGrowthMode() {
     growthShowAll = !growthShowAll;
     const btn = document.getElementById('growthModeBtn');
     btn.textContent = growthShowAll ? 'This Portfolio' : 'All Portfolios';
-    btn.style.background = growthShowAll ? 'var(--rose-light)' : 'rgba(255,255,255,0.5)';
-    growthScrubIdx = -1;
-    renderGrowthChart();
+    btn.classList.toggle('on', growthShowAll);
+    renderGrowthChart(true);
+}
+function setGrowthRange(range) {
+    growthRange = range;
+    document.querySelectorAll('.growth-range-btn').forEach(b => b.classList.toggle('active', b.textContent === range));
+    renderGrowthChart(true);
+}
+function moveGrowthRangeIndicator() {
+    const ind = document.getElementById('growthRangeInd');
+    const active = document.querySelector('.growth-range-btn.active');
+    if (!ind || !active || !active.offsetWidth) return;
+    ind.style.width = active.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + (active.offsetLeft - 3) + 'px)';
 }
 
-function buildGrowthTimeline(portfolioFilter) {
-    const data = loadData();
-    const portfolios = portfolioFilter ? [portfolioFilter] : ['cushion', 'growth', 'ira', 'stocks'];
-
-    // Phase 1: Build cost-basis timeline from DCA history events
-    // At each DCA event, value ≈ cost basis (you just bought at market price)
-    const events = [];
-    portfolios.forEach(pKey => {
-        (data.history || []).filter(h => h.portfolio === pKey).forEach(e => {
-            events.push({ date: new Date(e.date), type: e.type === 'sell' ? 'sell' : 'dca', portfolio: pKey, amount: e.totalAmount });
-        });
-        (data.dividendHistory || []).filter(d => d.portfolio === pKey).forEach(e => {
-            events.push({ date: new Date(e.date), type: 'div', portfolio: pKey, amount: e.amount });
-        });
-    });
-    events.sort((a, b) => a.date - b.date);
-
-    const invested = {};
-    portfolios.forEach(p => { invested[p] = 0; });
-    const historyPoints = new Map(); // dateStr -> {invested, total}
-    events.forEach(e => {
-        if (e.type === 'dca') invested[e.portfolio] += e.amount;
-        else if (e.type === 'sell') invested[e.portfolio] -= e.amount;
-        let totalI = 0;
-        portfolios.forEach(p => { totalI += invested[p]; });
-        const costBasis = Math.max(0, totalI);
-        const dateStr = e.date.toISOString().slice(0, 10);
-        // At time of DCA, value ≈ cost basis
-        historyPoints.set(dateStr, { date: e.date, invested: costBasis, total: costBasis });
-    });
-
-    // Phase 2: Overlay daily snapshots (these have REAL market values)
-    const snapshots = data.valueSnapshots || [];
-    const snapshotPoints = new Map();
-    snapshots.forEach(snap => {
-        let totalValue = 0, totalCost = 0;
-        portfolios.forEach(pKey => {
-            const ps = snap.portfolios[pKey];
-            if (ps) { totalValue += ps.value; totalCost += ps.cost; }
-        });
-        if (totalValue > 0 || totalCost > 0) {
-            snapshotPoints.set(snap.date, {
-                date: new Date(snap.date + 'T12:00:00'),
-                invested: totalCost, total: totalValue
-            });
-        }
-    });
-
-    // Merge: snapshots override history for same date
-    const merged = new Map(historyPoints);
-    snapshotPoints.forEach((val, key) => merged.set(key, val));
-
-    // Sort by date
-    const timeline = Array.from(merged.values()).sort((a, b) => a.date - b.date);
-
-    // Phase 3: Add current live value as final point
-    let currentVal = 0, actualCostBasis = 0;
-    portfolios.forEach(pKey => {
-        const pDef = PORTFOLIOS[pKey];
-        const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
-        pDef.order.forEach(t => {
-            const h = pd.holdings[t] || { shares: 0, costBasis: 0 };
-            currentVal += h.shares * getPrice(t);
-            actualCostBasis += h.costBasis;
-        });
-    });
-
-    if (timeline.length > 0 || currentVal > 0) {
-        timeline.push({ date: new Date(), invested: actualCostBasis, total: currentVal });
+// Readings from an out-of-date copy: while the phone and desktop were out of sync, both
+// recorded daily snapshots, so a portfolio's cost can flip between two levels day to day
+// (Flywheel in August: ~$115 on one device, ~$1,220 on the other). Cost only moves on
+// trades, so walk back from today: a cost jump of more than 10% is a real deposit or sale
+// unless the later level shows up again just before it — then that day came from the
+// stale copy. Smaller disagreements between the copies (Growth in July, ~$62) stay in.
+function _dropStaleReadings(pts) {
+    const tol = c => Math.max(50, Math.abs(c) * 0.1);
+    const keep = pts.map(() => true);
+    let ref = pts.length - 1;
+    for (let i = pts.length - 2; i >= 0; i--) {
+        const rc = pts[ref].cost;
+        if (Math.abs(pts[i].cost - rc) <= tol(rc)) { ref = i; continue; }
+        let stale = false;
+        for (let j = i - 1; j >= Math.max(0, i - 10) && !stale; j--) stale = Math.abs(pts[j].cost - rc) <= tol(rc);
+        if (stale) keep[i] = false; else ref = i;
     }
-    return timeline;
+    return pts.filter((p, i) => keep[i]);
 }
 
-function renderGrowthChart() {
+// Daily points { date, t, value, cost, pnl } for the chosen portfolios, plus a live point for now
+function buildGrowthSeries(keys) {
+    const data = loadData();
+    const today = new Date().toISOString().slice(0, 10); // snapshots use the UTC date too
+    const tOf = date => { const [y, m, d] = date.split('-').map(Number); return new Date(y, m - 1, d, 16).getTime(); };
+    const perKey = keys.map(k => {
+        let pts = [];
+        (data.valueSnapshots || []).forEach(snap => {
+            const p = snap.portfolios && snap.portfolios[k];
+            if (!p || !(p.value > 0 || p.cost > 0)) return;
+            // A zero cost next to a real value (or the reverse) is a broken snapshot
+            const broken = (p.value > 0 && !(p.cost > 0)) || (p.cost > 0 && !(p.value > 0));
+            pts.push({ date: snap.date, t: tOf(snap.date), value: p.value || 0, cost: p.cost || 0, broken });
+        });
+        // Now, from current holdings, once every held ticker has a price
+        let value = 0, cost = 0, priced = true;
+        const pd = (data.portfolios && data.portfolios[k]) || { holdings: {} };
+        PORTFOLIOS[k].order.forEach(t => {
+            const h = pd.holdings[t];
+            if (!h || !(h.shares > 0)) return;
+            if (!(getPrice(t) > 0)) priced = false;
+            value += h.shares * getPrice(t);
+            cost += h.costBasis || 0;
+        });
+        if (priced && (value > 0 || cost > 0)) {
+            pts = pts.filter(p => p.date !== today);
+            pts.push({ date: today, t: Date.now(), value, cost, live: true });
+        }
+        pts.sort((a, b) => a.t - b.t);
+        const kept = _dropStaleReadings(pts.filter(p => !p.broken));
+        return { seen: new Set(pts.map(p => p.date)), kept: new Map(kept.map(p => [p.date, p])) };
+    });
+    // Add the portfolios up by day, skipping any day where one of them had a bad reading
+    const dates = new Set();
+    perKey.forEach(pk => pk.kept.forEach((p, d) => dates.add(d)));
+    const out = [];
+    dates.forEach(date => {
+        let value = 0, cost = 0, t = 0, live = false, ok = true;
+        perKey.forEach(pk => {
+            const p = pk.kept.get(date);
+            if (p) { value += p.value; cost += p.cost; t = Math.max(t, p.t); live = live || !!p.live; }
+            else if (pk.seen.has(date)) ok = false;
+        });
+        if (ok) out.push({ date, t, value, cost, pnl: value - cost, live });
+    });
+    return out.sort((a, b) => a.t - b.t);
+}
+
+// Points inside the range, plus the last point before it (the change is measured from there)
+function growthWindow(pts, range) {
+    if (range === 'All') return { points: pts, baseline: null };
+    const days = { '1M': 30, '3M': 91, '6M': 182, '1Y': 365 }[range] || 30;
+    const cutoff = Date.now() - days * 86400000;
+    let baseline = null;
+    const points = [];
+    pts.forEach(p => { if (p.t >= cutoff) points.push(p); else baseline = p; });
+    return { points, baseline };
+}
+
+function renderGrowthChart(animate) {
+    const keys = growthShowAll ? Object.keys(PORTFOLIOS) : [currentPortfolio];
+    const all = buildGrowthSeries(keys);
+    const { points, baseline } = growthWindow(all, growthRange);
+    const valueEl = document.getElementById('growthValue');
+    const pillEl = document.getElementById('growthPill');
+    const noteEl = document.getElementById('growthNote');
+    const footEl = document.getElementById('growthFoot');
+    document.getElementById('growthTitle').textContent =
+        (growthShowAll ? 'All Portfolios' : PORTFOLIOS[currentPortfolio].name) + ' · Total Return';
+
+    const last = all[all.length - 1];
+    if (!last) {
+        valueEl.textContent = '--';
+        valueEl.className = 'growth-value';
+        pillEl.style.display = 'none';
+        noteEl.textContent = '';
+        footEl.innerHTML = '';
+    } else {
+        valueEl.textContent = fmtSigned(last.pnl);
+        valueEl.className = 'growth-value ' + (last.pnl >= 0 ? 'up' : 'down');
+        if (points.length && (baseline || points.length >= 2)) {
+            const start = baseline ? baseline.pnl : points[0].pnl;
+            const change = points[points.length - 1].pnl - start;
+            const label = { '1M': 'over 1 month', '3M': 'over 3 months', '6M': 'over 6 months', '1Y': 'over 1 year' }[growthRange]
+                || 'since ' + growthDateLabel(points[0]);
+            pillEl.textContent = (change >= 0 ? '▲ ' : '▼ ') + fmtSigned(change) + ' ' + label;
+            pillEl.className = 'growth-pill ' + (change >= 0 ? 'up' : 'down');
+            pillEl.style.display = '';
+        } else {
+            pillEl.style.display = 'none';
+        }
+        // Best return so far, and how far below it we are
+        let peak = all[0];
+        all.forEach(p => { if (p.pnl > peak.pnl) peak = p; });
+        const off = peak.pnl - last.pnl;
+        const atHigh = off <= 0.005;
+        noteEl.textContent = atHigh ? 'At its best so far' : 'Best was ' + fmtSigned(peak.pnl) + ' on ' + growthDateLabel(peak) + ', now $' + off.toFixed(2) + ' below';
+        noteEl.className = 'growth-note' + (atHigh ? ' at-high' : '');
+        // Footer: where it stands now, and the deepest dip inside the range
+        let runPeak = -Infinity, dip = 0;
+        points.forEach(p => { runPeak = Math.max(runPeak, p.pnl); dip = Math.max(dip, runPeak - p.pnl); });
+        const pct = last.cost > 0 ? last.pnl / last.cost * 100 : 0;
+        const stat = (label, val, color) => `<div><div class="growth-stat-label">${label}</div><div class="growth-stat-val"${color ? ` style="color:${color}"` : ''}>${val}</div></div>`;
+        footEl.innerHTML =
+            stat('Value', fmt(last.value)) +
+            stat('Put In', fmt(last.cost)) +
+            stat('Return', (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', pct >= 0 ? GROWTH_INK.up : GROWTH_INK.down) +
+            stat('Best', fmtSigned(peak.pnl), GROWTH_INK.up) +
+            (dip > 0.005 ? stat('Deepest Dip', '−$' + dip.toFixed(2), GROWTH_INK.down) : '');
+    }
+    const first = !growthHasAnimated && points.length >= 2;
+    if (first) growthHasAnimated = true;
+    drawGrowthChart(points, !!animate || first, all.length);
+    moveGrowthRangeIndicator();
+}
+
+function drawGrowthChart(series, animate, totalPoints) {
+    growthSeries = series;
     const canvas = document.getElementById('growthChart');
     const emptyEl = document.getElementById('growthEmpty');
-    const ctx = scaleCanvas(canvas, 400, 200);
-    const w = 400, h = 200;
-    try {
-        let timeline = growthShowAll ? buildGrowthTimeline(null) : buildGrowthTimeline(currentPortfolio);
-        // Filter out invalid dates
-        timeline = timeline.filter(t => t.date instanceof Date && !isNaN(t.date.getTime()));
-        timeline.sort((a, b) => a.date - b.date);
-        const pad = { top: 10, right: 10, bottom: 25, left: 50 };
-        if (timeline.length < 2) {
-            ctx.clearRect(0, 0, w, h);
-            growthTimeline = [];
-            if (emptyEl) {
-                // Show current value if holdings exist but no history
-                const data = loadData();
-                const portfolios = growthShowAll ? ['cushion', 'growth', 'ira', 'stocks'] : [currentPortfolio];
-                let val = 0, cost = 0;
-                portfolios.forEach(pKey => {
-                    const pd = (data.portfolios && data.portfolios[pKey]) || { holdings: {} };
-                    const pDef = PORTFOLIOS[pKey];
-                    if (pDef) pDef.order.forEach(t => {
-                        const h = pd.holdings[t] || { shares: 0, costBasis: 0 };
-                        val += h.shares * getPrice(t);
-                        cost += h.costBasis || 0;
-                    });
-                });
-                if (val > 0) {
-                    const fmt = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    const gain = val - cost;
-                    const gainPct = cost > 0 ? ((gain / cost) * 100).toFixed(1) : '0.0';
-                    const gainColor = gain >= 0 ? 'var(--leaf)' : 'var(--red)';
-                    emptyEl.innerHTML = `<div>Current: <b>${fmt(val)}</b> · Cost: <b>${fmt(cost)}</b><br><span style="color:${gainColor}; font-size:0.65rem;">${gain >= 0 ? '+' : ''}${fmt(gain)} (${gainPct}%)</span><br><span style="font-size:0.6rem; margin-top:4px; display:inline-block;">DCA history needed to chart growth over time</span></div>`;
-                } else {
-                    emptyEl.textContent = 'Make 2+ DCA contributions to see growth chart';
-                }
-                emptyEl.style.display = 'flex';
-            }
-            return;
+    if (!canvas) return;
+    if (growthAnimFrame) { cancelAnimationFrame(growthAnimFrame); growthAnimFrame = null; }
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+    const css = getComputedStyle(document.documentElement);
+    const dimInk = (css.getPropertyValue('--text-dim') || '').trim() || '#6b5e5e';
+
+    if (series.length < 2) {
+        ctx.clearRect(0, 0, W, H);
+        growthXs = []; growthYs = [];
+        emptyEl.textContent = totalPoints ? 'Not enough days in this range yet — try All' : 'Your return curve starts once there are a couple of days of snapshots';
+        emptyEl.style.display = 'flex';
+        return;
+    }
+    emptyEl.style.display = 'none';
+
+    // Leave room for the headline block that floats over the top of the plot
+    const head = document.querySelector('.growth-head');
+    const pad = { top: Math.max(92, (head ? head.offsetTop + head.offsetHeight : 0) + 14), right: 58, bottom: 22, left: 0 };
+    if (W < 560) pad.right = 50;
+    growthPad = pad;
+    const plotW = W - pad.left - pad.right;
+    const plotH = H - pad.top - pad.bottom;
+
+    // Y scale on "nice" steps (1-2-2.5-5), always including $0
+    const vals = series.map(p => p.pnl);
+    const rawMin = Math.min(...vals, 0), rawMax = Math.max(...vals, 0);
+    const roughStep = ((rawMax - rawMin) || 1) / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const norm = roughStep / mag;
+    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+    const yMin = Math.floor(rawMin / step) * step;
+    const yMax = Math.ceil(rawMax / step) * step + (Math.abs(rawMax % step) < 1e-9 ? step * 0.25 : 0);
+    const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+    const fmtTick = v => (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+
+    // X is calendar time
+    const t0 = series[0].t, tSpan = (series[series.length - 1].t - t0) || 1;
+    const toY = v => pad.top + plotH * (1 - (v - yMin) / (yMax - yMin));
+    growthXs = series.map(p => pad.left + ((p.t - t0) / tSpan) * plotW);
+    growthYs = series.map(p => toY(p.pnl));
+    const xs = growthXs, ys = growthYs;
+
+    // Running best, for the dip shading and the "best" marker
+    const hwm = [];
+    let runPeak = -Infinity, peakIdx = 0;
+    series.forEach((p, i) => { if (p.pnl > runPeak) { runPeak = p.pnl; peakIdx = i; } hwm.push(runPeak); });
+    const lastPnl = series[series.length - 1].pnl;
+    const inDip = series[peakIdx].pnl > lastPnl + 0.005;
+
+    function paint(progress) {
+        ctx.clearRect(0, 0, W, H);
+        // Gridlines + right-edge ticks; the $0 line is dashed
+        ctx.font = '600 9px Quicksand';
+        for (let v = yMin; v <= yMax + 1e-9; v += step) {
+            const val = Math.round(v / step) * step;
+            const gy = toY(val);
+            if (gy < pad.top - 1 || gy > pad.top + plotH + 1) continue;
+            const isZero = Math.abs(val) < step / 1000;
+            ctx.strokeStyle = isZero ? 'rgba(212,107,115,0.45)' : 'rgba(212,107,115,0.12)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash(isZero ? [4, 4] : []);
+            ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + plotW, gy); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = dimInk;
+            ctx.globalAlpha = isZero ? 0.9 : 0.65;
+            ctx.textAlign = 'left';
+            ctx.fillText(fmtTick(val), pad.left + plotW + 8, gy + 3);
+            ctx.globalAlpha = 1;
         }
-        if (emptyEl) emptyEl.style.display = 'none';
-        // Scale Y-axis to current values — old sold-off peaks shouldn't dominate
-        const lastPt = timeline[timeline.length - 1];
-        const maxVal = Math.max(lastPt.total, lastPt.invested, 1) * 1.2;
-        const minDate = timeline[0].date.getTime(), maxDate = timeline[timeline.length - 1].date.getTime(), dateRange = maxDate - minDate || 1;
-        const plotW = w - pad.left - pad.right, plotH = h - pad.top - pad.bottom;
-        // Store for scrubber interaction
-        growthTimeline = timeline;
-        growthMaxVal = maxVal;
-        growthPad = pad;
-        growthXFn = function(d) { return pad.left + ((d.getTime() - minDate) / dateRange) * plotW; };
-        growthYFn = function(v) { return pad.top + plotH - (maxVal > 0 ? (v / maxVal) * plotH : 0); };
-        drawGrowthBase(ctx);
-        if (growthScrubIdx >= 0 && growthScrubIdx < timeline.length) drawGrowthScrub(ctx, growthScrubIdx);
-        const modeLabel = growthShowAll ? 'All Portfolios' : PORTFOLIOS[currentPortfolio].name;
-        document.getElementById('growthLabel').innerHTML = '<span style="color:#e88b93;">&#x25CF;</span> ' + modeLabel + ' Value &nbsp; <span style="color:#c0b0b0;">- - -</span> Cost Basis';
-    } catch (err) {
-        console.error('Growth chart error:', err);
-        ctx.clearRect(0, 0, w, h);
-        growthTimeline = [];
-        if (emptyEl) { emptyEl.textContent = 'Chart error — check console'; emptyEl.style.display = 'flex'; }
+
+        const revealX = pad.left + plotW * progress;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0, 0, revealX + 2, H); ctx.clip();
+
+        // Rose wash under the curve, down to $0
+        const zeroY = Math.min(Math.max(toY(0), pad.top), pad.top + plotH);
+        const wash = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+        wash.addColorStop(0, 'rgba(' + GROWTH_INK.rgb + ',0.30)');
+        wash.addColorStop(1, 'rgba(' + GROWTH_INK.rgb + ',0.02)');
+        ctx.beginPath();
+        ctx.moveTo(xs[0], zeroY);
+        for (let i = 0; i < series.length; i++) ctx.lineTo(xs[i], ys[i]);
+        ctx.lineTo(xs[series.length - 1], zeroY);
+        ctx.closePath();
+        ctx.fillStyle = wash; ctx.fill();
+
+        // Dips: shade between the running best and the curve
+        ctx.beginPath();
+        for (let i = 0; i < series.length; i++) ctx.lineTo(xs[i], toY(hwm[i]));
+        for (let i = series.length - 1; i >= 0; i--) ctx.lineTo(xs[i], ys[i]);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(' + GROWTH_INK.lossRgb + ',0.13)'; ctx.fill();
+
+        // Soft wide stroke, then the crisp line
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let i = 0; i < series.length; i++) i === 0 ? ctx.moveTo(xs[i], ys[i]) : ctx.lineTo(xs[i], ys[i]);
+        ctx.strokeStyle = 'rgba(' + GROWTH_INK.rgb + ',0.28)'; ctx.lineWidth = 7; ctx.stroke();
+        ctx.shadowColor = 'rgba(' + GROWTH_INK.rgb + ',0.55)'; ctx.shadowBlur = 8;
+        ctx.strokeStyle = GROWTH_INK.line; ctx.lineWidth = 2.25; ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+
+        if (progress >= 1) {
+            // Best so far: dashed line from the peak to the right edge
+            if (inDip) {
+                const px = xs[peakIdx], py = ys[peakIdx];
+                ctx.setLineDash([3, 5]);
+                ctx.strokeStyle = 'rgba(' + GROWTH_INK.lossRgb + ',0.7)'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(pad.left + plotW, py); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2);
+                ctx.fillStyle = GROWTH_INK.down; ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.25; ctx.stroke();
+                ctx.fillStyle = GROWTH_INK.down;
+                ctx.font = '700 9px Quicksand';
+                ctx.textAlign = 'right';
+                ctx.fillText('best ' + fmtSigned(series[peakIdx].pnl), pad.left + plotW - 8, py - 6);
+            }
+            // Now
+            const ex = xs[series.length - 1], ey = ys[series.length - 1];
+            ctx.beginPath(); ctx.arc(ex, ey, 7, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + GROWTH_INK.rgb + ',0.25)'; ctx.fill();
+            ctx.beginPath(); ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = GROWTH_INK.line; ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+        }
+
+        // Dates by calendar position
+        ctx.fillStyle = dimInk;
+        ctx.globalAlpha = 0.75;
+        ctx.font = '600 9px Quicksand';
+        const n = Math.min(W < 560 ? 3 : 5, series.length);
+        for (let i = 0; i < n; i++) {
+            const t = t0 + (tSpan * i) / (n - 1);
+            let idx = 0, best = Infinity;
+            series.forEach((p, j) => { const dd = Math.abs(p.t - t); if (dd < best) { best = dd; idx = j; } });
+            ctx.textAlign = i === 0 ? 'left' : i === n - 1 ? 'right' : 'center';
+            ctx.fillText(growthDateLabel(series[idx]), xs[idx] + (i === 0 ? 6 : 0), H - 7);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    if (animate && !GROWTH_REDUCED_MOTION) {
+        const start = performance.now(), dur = 650;
+        const frame = now => {
+            const p = Math.min(1, (now - start) / dur);
+            paint(1 - Math.pow(1 - p, 3));
+            growthAnimFrame = p < 1 ? requestAnimationFrame(frame) : null;
+        };
+        growthAnimFrame = requestAnimationFrame(frame);
+    } else {
+        paint(1);
     }
 }
 
-// Growth chart scrubber interaction
-(function() {
-    const canvas = document.getElementById('growthChart');
-    if (!canvas) return;
-    function handleMove(clientX) {
-        if (growthTimeline.length < 2 || !growthXFn) return;
-        const rect = canvas.getBoundingClientRect();
-        const logicalX = (clientX - rect.left) * (400 / rect.width);
-        // Find nearest timeline point
-        let bestIdx = 0, bestDist = Infinity;
-        for (let i = 0; i < growthTimeline.length; i++) {
-            const d = Math.abs(growthXFn(growthTimeline[i].date) - logicalX);
-            if (d < bestDist) { bestDist = d; bestIdx = i; }
-        }
-        if (growthScrubIdx === bestIdx) return;
-        growthScrubIdx = bestIdx;
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawGrowthBase(ctx);
-        drawGrowthScrub(ctx, bestIdx);
-        ctx.restore();
+// Tooltip: nearest day by position — date, return, value, what was put in, change from the day before
+(function setupGrowthTooltip() {
+    const stage = document.getElementById('growthStage');
+    if (!stage) return;
+    const tip = document.getElementById('growthTooltip');
+    const cross = document.getElementById('growthCrosshair');
+    function show(clientX) {
+        const s = growthSeries;
+        if (!s || s.length < 2 || !growthXs.length) return;
+        const rect = stage.getBoundingClientRect();
+        const x = clientX - rect.left;
+        if (x > rect.width - growthPad.right + 8) { hide(); return; }
+        let idx = 0, best = Infinity;
+        growthXs.forEach((px, j) => { const dd = Math.abs(px - x); if (dd < best) { best = dd; idx = j; } });
+        const p = s[idx], prev = s[idx - 1];
+        const color = p.pnl >= 0 ? GROWTH_INK.up : GROWTH_INK.down;
+        const delta = prev ? p.pnl - prev.pnl : null;
+        tip.innerHTML =
+            '<div class="growth-tip-date">' + (p.live ? 'Now' : growthDateLabel(p, true)) + '</div>' +
+            '<div style="color:' + color + ';font-weight:700;font-size:0.72rem">' + fmtSigned(p.pnl) + '</div>' +
+            '<div>Value ' + fmt(p.value) + ' · Put in ' + fmt(p.cost) + '</div>' +
+            (delta !== null ? '<div style="color:' + (delta >= 0 ? GROWTH_INK.up : GROWTH_INK.down) + '">' + fmtSigned(delta) + ' since ' + growthDateLabel(prev) + '</div>' : '');
+        tip.style.display = 'block';
+        const tx = growthXs[idx], ty = growthYs[idx];
+        const half = tip.offsetWidth / 2 + 6, th = tip.offsetHeight;
+        tip.style.left = Math.max(half, Math.min(rect.width - half, tx)) + 'px';
+        let top = ty - th - 14;
+        if (top < growthPad.top - 10) top = ty + 14;
+        tip.style.top = Math.min(top, rect.height - th - 4) + 'px';
+        cross.style.display = 'block';
+        cross.style.top = growthPad.top + 'px';
+        cross.style.left = tx + 'px';
     }
-    function handleEnd() {
-        growthScrubIdx = -1;
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawGrowthBase(ctx);
-        ctx.restore();
-    }
-    canvas.addEventListener('mousemove', function(e) { handleMove(e.clientX); });
-    canvas.addEventListener('mouseleave', handleEnd);
-    canvas.addEventListener('touchmove', function(e) {
-        e.preventDefault();
-        if (e.touches.length > 0) handleMove(e.touches[0].clientX);
-    }, { passive: false });
-    canvas.addEventListener('touchend', handleEnd);
+    function hide() { tip.style.display = 'none'; cross.style.display = 'none'; }
+    stage.addEventListener('mousemove', e => show(e.clientX));
+    stage.addEventListener('mouseleave', hide);
+    stage.addEventListener('touchmove', e => { e.preventDefault(); show(e.touches[0].clientX); }, { passive: false });
+    stage.addEventListener('touchend', hide);
+    let resizeT = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeT);
+        resizeT = setTimeout(() => { if (growthSeries.length) drawGrowthChart(growthSeries, false, growthSeries.length); moveGrowthRangeIndicator(); }, 120);
+    });
 })();
 
 // ====== WEEKLY DCA SPLITTER ======
@@ -3540,8 +3628,6 @@ function buyPill(el) {
     if (!data.history) data.history = [];
     data.history.push({ id: 'buy_' + Date.now() + '_' + ticker, date: new Date().toISOString(), portfolio: pkey, totalAmount: amount, type: 'dca', allocations: [{ ticker, amount, shares, price }] });
     saveData(data, true);
-    // Auto-dismiss buy opportunity card for this ticker
-    if (dismissedOpps && !dismissedOpps.has(ticker)) { dismissedOpps.add(ticker); saveDismissedOpps(); }
     el.classList.add('bought');
     el.textContent = '\u2713 ' + ticker;
     renderAll();
@@ -3576,10 +3662,7 @@ function confirmSplitter() {
         if (!pd.holdings[ticker]) pd.holdings[ticker] = { shares: 0, costBasis: 0 };
         pd.holdings[ticker].shares += shares;
         pd.holdings[ticker].costBasis += amount;
-        // Auto-dismiss buy opportunity card for this ticker
-        if (dismissedOpps && !dismissedOpps.has(ticker)) dismissedOpps.add(ticker);
     });
-    saveDismissedOpps();
     // Add history entries per portfolio, from the pills themselves so they match what was
     // added to holdings (the 2x button changes pill amounts, not pendingSplitter)
     if (!data.history) data.history = [];
@@ -3704,54 +3787,124 @@ function switchPortfolio() {
 }
 
 // ====== INIT ======
+// Which copy's holdings are current is decided by trades first: if only one side has
+// trades the other hasn't seen, that side is up to date, whatever the clocks say. When
+// neither (or both) has unseen trades, the last real edit wins — lastModified, the time of
+// the edit, never the server's save time, so re-uploading an old copy can't make it win.
+// History, dividends and snapshots are always unioned; undone trades stay gone via
+// deletedIds. Returns { needsPush } — true when the cloud is missing something.
+function _unseenBy(mine, theirs) {
+    const ids = new Set(theirs.map(x => x.id));
+    // Entries older than everything the other side still keeps were trimmed there, not missed
+    const oldest = theirs.length ? theirs.map(x => x.date || '').sort()[0] : '';
+    return mine.filter(x => !ids.has(x.id) && (x.date || '') >= oldest);
+}
+function _syncSig(d) {
+    return JSON.stringify([d.portfolios, d.cash || {}, d.splitterRatios || null, d.splitterTotal || '',
+        (d.history || []).length, (d.dividendHistory || []).length, (d.valueSnapshots || []).length,
+        (d.deletedIds || []).length, d.lastModified || 0]);
+}
+// Drift-rebalance sells ('sell_<time>_<TICKER>') buy straight back in, so no cash moves
+const _isRebalanceSell = h => /^sell_\d+_/.test(h.id || '');
+// Apply one logged trade to a copy's holdings, the same way it was applied when logged
+function _replayTrade(d, x) {
+    const pk = x.portfolio;
+    if (!pk) return;
+    const pd = d.portfolios[pk] = d.portfolios[pk] || { holdings: {} };
+    pd.holdings = pd.holdings || {};
+    const hold = t => (pd.holdings[t] = pd.holdings[t] || { shares: 0, costBasis: 0 });
+    d.cash = Object.assign({}, d.cash || {});
+    if (x.type === 'sell') {
+        const h = hold(x.ticker);
+        h.shares = Math.max(0, h.shares - (x.shares || 0));
+        h.costBasis = Math.max(0, h.costBasis - ((x.totalAmount || 0) - (x.profit || 0)));
+        if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
+        if (!_isRebalanceSell(x)) d.cash[pk] = (d.cash[pk] || 0) + (x.totalAmount || 0);
+    } else if (x.allocations) {
+        x.allocations.forEach(a => { const h = hold(a.ticker); h.shares += a.shares || 0; h.costBasis += a.amount || 0; });
+        if (x.cashUsed > 0) d.cash[pk] = Math.max(0, (d.cash[pk] || 0) - x.cashUsed);
+    } else if (x.ticker) { // dividend, reinvested into buyTicker
+        const h = hold(x.buyTicker || x.ticker);
+        h.shares += x.shares || 0;
+        h.costBasis += x.amount || 0;
+    }
+}
+function _describeTrade(x) {
+    const when = (x.date || '').slice(5, 10).replace('-', '/');
+    if (x.type === 'sell') return 'sell ' + x.ticker + ' ' + when;
+    if (x.allocations) return 'buy ' + x.allocations.map(a => a.ticker).slice(0, 3).join('/') + ' ' + when;
+    return (x.ticker || '?') + ' dividend ' + when;
+}
 function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
-    if (!cloud || !cloud.portfolios) return;
-    if (_lastPushFailed && !forceRestore) { console.warn('[Bloom] Skipping cloud merge — last push failed'); return; }
+    if (!cloud || !cloud.portfolios) return { needsPush: false };
     const local = loadData();
-    const localMod = local.lastModified || 0;
-    const localSync = local.lastSyncedAt ? new Date(local.lastSyncedAt).getTime() : 0;
-    const localCmp = Math.max(localMod, localSync);
-    const cloudCmp = serverTs ? new Date(serverTs).getTime() : (cloud.lastModified || 0);
-    const cloudWins = forceRestore || cloudCmp > localCmp;
-    // Always merge history/dividends/snapshots by ID regardless of timestamps
-    // so trades from either device survive. Timestamp only decides portfolio state.
+    const deleted = [...new Set([...(local.deletedIds || []), ...(cloud.deletedIds || [])])].slice(-MAX_DELETED_IDS);
+    const gone = new Set(deleted);
+    const live = arr => (arr || []).filter(x => x && !gone.has(x.id));
+    const lh = live(local.history), ch = live(cloud.history);
+    const ld = live(local.dividendHistory), cd = live(cloud.dividendHistory);
+    const localOnly = [..._unseenBy(lh, ch), ..._unseenBy(ld, cd)];
+    const cloudOnly = [..._unseenBy(ch, lh), ..._unseenBy(cd, ld)];
+    const localMod = local.lastModified || 0, cloudMod = cloud.lastModified || 0;
+    let cloudWins;
+    if (forceRestore) cloudWins = true;
+    else if (cloudOnly.length && !localOnly.length) cloudWins = true;
+    else if (localOnly.length && !cloudOnly.length) cloudWins = false;
+    else cloudWins = cloudMod >= localMod;
     const base = cloudWins ? Object.assign(createDefaultData(), cloud) : Object.assign({}, local);
-    // Merge history by ID so concurrent trades from two devices both survive
-    const histMap = new Map();
-    (local.history || []).forEach(h => histMap.set(h.id, h));
-    (cloud.history || []).forEach(h => histMap.set(h.id, h));
-    base.history = Array.from(histMap.values())
-        .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-        .slice(-500); // hard cap
-    const divMap = new Map();
-    (local.dividendHistory || []).forEach(h => divMap.set(h.id, h));
-    (cloud.dividendHistory || []).forEach(h => divMap.set(h.id, h));
-    base.dividendHistory = Array.from(divMap.values())
-        .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-        .slice(-500); // hard cap
-    // Merge valueSnapshots: combine cloud + local, dedupe by date, keep latest 365
+    // Splitter settings aren't trades: they follow whichever copy was edited last
+    const newer = cloudMod > localMod ? cloud : local;
+    if (!forceRestore && newer.splitterRatios) { base.splitterRatios = newer.splitterRatios; base.splitterTotal = newer.splitterTotal || ''; }
+    const union = (a, b) => {
+        const m = new Map();
+        a.forEach(x => m.set(x.id, x));
+        b.forEach(x => m.set(x.id, x));
+        return Array.from(m.values()).sort((x, y) => (x.date || '').localeCompare(y.date || '')).slice(-MAX_HISTORY);
+    };
+    base.history = union(lh, ch);
+    base.dividendHistory = union(ld, cd);
     const snapMap = new Map();
     (local.valueSnapshots || []).forEach(s => snapMap.set(s.date, s));
     (cloud.valueSnapshots || []).forEach(s => snapMap.set(s.date, s));
     base.valueSnapshots = Array.from(snapMap.values())
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(-365);
+    base.deletedIds = deleted;
+    // Both devices logged trades while out of sync: holdings came from one copy, so apply
+    // the other copy's trades on top. The merged history then holds both sets, so the next
+    // merge sees nothing unseen and can't apply them twice.
+    const conflict = !forceRestore && localOnly.length > 0 && cloudOnly.length > 0;
+    const replayed = conflict ? (cloudWins ? localOnly : cloudOnly) : [];
+    if (replayed.length) {
+        base.portfolios = JSON.parse(JSON.stringify(base.portfolios));
+        replayed.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(x => _replayTrade(base, x));
+    }
+    if (localMod || cloudMod) base.lastModified = Math.max(localMod, cloudMod);
+    if (replayed.length) base.lastModified = Date.now(); // the combined copy is a new edit
     if (serverTs) base.lastSyncedAt = serverTs;
     // Union migrations: if either device completed a migration, mark it done
     base.migrations = Object.assign({}, local.migrations || {}, cloud.migrations || {});
-    // Check if anything actually changed before saving
-    const localHist = (local.history || []).length;
-    const localDiv = (local.dividendHistory || []).length;
-    const localSnap = (local.valueSnapshots || []).length;
-    if (cloudWins || base.history.length !== localHist ||
-        base.dividendHistory.length !== localDiv ||
-        base.valueSnapshots.length !== localSnap) {
+    if (_syncSig(base) !== _syncSig(local)) {
         _splitSave(base);
         if (!isStartup) renderAll();
+    }
+    if (replayed.length) {
+        console.warn('[Bloom] Both devices logged trades while out of sync — combined them', { localOnly, cloudOnly, cloudWins });
+        const banner = document.getElementById('errorBanner');
+        if (banner) {
+            banner.textContent = 'Both devices logged trades while out of sync, so they were combined: ' +
+                replayed.map(_describeTrade).join(', ') + ' added from ' + (cloudWins ? 'this device' : 'the other device') +
+                '. Worth a quick check that share counts match Robinhood.';
+            banner.style.display = 'block';
+        }
     }
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
     if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
     if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
+    const needsPush = _syncSig(base) !== _syncSig(cloud);
+    // The cloud already holds this state, so a save right now would be a no-op
+    if (!needsPush) _lastPushedJson = JSON.stringify(_buildSavePayload(loadData()));
+    return { needsPush: needsPush };
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -3759,7 +3912,8 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(currentPortfolio);
     // Detect cache-wipe: if SK_CORE doesn't exist, localStorage was cleared
     var _bloomFreshInstall = !localStorage.getItem(SK_CORE);
-    // Stamp lastModified if missing on existing data
+    // Old data with holdings but no lastModified: give it the oldest possible stamp, so it
+    // can be pushed but never outranks a real edit from the other device
     (function() {
         var d = loadData();
         if (d.portfolios && !d.lastModified) {
@@ -3771,32 +3925,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (hasHoldings) break;
             }
-            if (hasHoldings) { d.lastModified = Date.now(); _splitSave(d); }
+            if (hasHoldings) { d.lastModified = 1; _splitSave(d); }
         }
     })();
     // Render from localStorage immediately — don't wait for cloud
-    // syncReady stays false until cloud load completes to prevent
-    // premature pushes that could overwrite good cloud data
     renderAll();
     // PULL cloud first, merge, then enable sync
-    loadFromCloud(function(cloud, serverTs) {
+    loadFromCloud(function(cloud, serverTs, status) {
+        var res = null;
         if (cloud && cloud.portfolios) {
-            mergeCloudData(cloud, true, serverTs, _bloomFreshInstall);
+            res = mergeCloudData(cloud, true, serverTs, _bloomFreshInstall);
             renderAll();
         }
-        // NOW enable sync — cloud state is merged, safe to push
         syncReady = true;
         refreshPrices();
-        // Push merged state back to cloud (only if not a fresh install with no real data)
-        if (!_bloomFreshInstall || (cloud && cloud.portfolios)) _doCloudSave();
+        // Push only what the cloud is missing (or seed an empty cloud). If the pull failed,
+        // nothing is pushed until a later pull succeeds (_pulledOnce).
+        if ((res && res.needsPush) || status === 'empty') _doCloudSave();
     });
 });
 
-// Dual visibilitychange: visible=pull, hidden=push
+// Visible = pull (and push back if this device has something new); hidden = push
 document.addEventListener('visibilitychange', () => {
     if (!syncReady) return;
     if (document.visibilityState === 'visible') {
-        if (!_lastPushFailed) mergeFromCloud(true);
+        mergeFromCloud(true);
     } else {
         clearTimeout(_syncDebounce);
         _doCloudSave();
@@ -3808,14 +3961,12 @@ document.addEventListener('pagehide', () => { beaconSave(); });
 
 // Reconnect after going offline
 window.addEventListener('online', () => {
-    if (syncReady) setTimeout(() => mergeFromCloud(false, () => _doCloudSave()), 1000);
+    if (syncReady) setTimeout(() => mergeFromCloud(false), 1000);
 });
 
-// 30s periodic poll for cross-device changes (skip if last push failed — cloud is stale)
+// 30s poll for the other device's changes; also retries a save that failed
 setInterval(() => {
-    if (syncReady && document.visibilityState === 'visible' && !_lastPushFailed) {
-        mergeFromCloud(false);
-    }
+    if (syncReady && document.visibilityState === 'visible') mergeFromCloud(false);
 }, 30000);
 
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./service-worker.js'); }

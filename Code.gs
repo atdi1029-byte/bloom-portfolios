@@ -2781,12 +2781,13 @@ function serveDcaPricesJSON_(extraParam) {
       var tk = String(techData[j][0]).toUpperCase().trim();
       if (tk) {
         techMap[tk] = {
-          rsi14: Number(techData[j][1]) || 50,
+          // 0 is a real (very oversold) RSI/DSS reading; only a blank cell means "no data"
+          rsi14: dcaNumOr_(techData[j][1], 50),
           sma50: Number(techData[j][2]) || 0,
           sma200: Number(techData[j][3]) || 0,
           price: Number(techData[j][4]) || 0,
           high52: Number(techData[j][5]) || 0,
-          dss3d: Number(techData[j][6]) || 50
+          dss3d: dcaNumOr_(techData[j][6], 50)
         };
       }
     }
@@ -2978,6 +2979,12 @@ function refreshDcaTechnicals() {
   }
   sheet.getRange('H1:J1').setValues([['Updated', new Date(), failed.join(',')]]);
   return { count: rows.length, failed: failed };
+}
+
+function dcaNumOr_(v, dflt) {
+  if (v === '' || v === null || v === undefined) return dflt;
+  var n = Number(v);
+  return isNaN(n) ? dflt : n;
 }
 
 // ---------------------------------------------------------------
@@ -4856,7 +4863,8 @@ function setDashboardApiKey() {
 // previous save is kept as a one-deep backup, the old layout is migrated
 // automatically on first use, and the daily snapshot trigger runs on top of it.
 //
-// The client (index.html) needs NO changes — same actions, params and responses.
+// Uploads may be gzip + base64 (z=1) and carry a per-upload id (u) — see BLOOM_chunkKey_.
+// Old clients (plain JSON, no u) still work.
 //
 // Wiring (already done in this file):
 //   • doGet() calls BLOOM_handle(e) right after handleDashboardExtras_(e)
@@ -4909,20 +4917,31 @@ function BLOOM_handle(e) {
       case 'dca_save_chunk': {
         var idx = parseInt(p.i, 10);
         if (isNaN(idx) || idx < 0) return BLOOM_respond(e, { status: 'error', message: 'bad chunk index' });
-        CacheService.getScriptCache().put('bloom_chunk_' + idx, String(p.cd || ''), BLOOM_CHUNK_TTL_SEC);
+        CacheService.getScriptCache().put(BLOOM_chunkKey_(p.u, idx), String(p.cd || ''), BLOOM_CHUNK_TTL_SEC);
         return BLOOM_respond(e, { status: 'ok', i: idx });
       }
 
       case 'dca_save_done': {
         var n = parseInt(p.n, 10);
         if (isNaN(n) || n <= 0) return BLOOM_respond(e, { status: 'error', message: 'bad chunk count' });
-        var assembled = BLOOM_assembleChunks(n);
+        var assembled = BLOOM_assembleChunks(n, p.u);
         if (assembled.error) return BLOOM_respond(e, { status: 'error', message: assembled.error });
-        var check2 = BLOOM_validateBlob(assembled.json);
+        var json2 = assembled.json;
+        // z=1: the client sent gzip + base64 (about 4x smaller, so a save is ~5 requests instead of ~65)
+        if (String(p.z || '') === '1') {
+          try { json2 = BLOOM_gunzipB64_(json2); }
+          catch (gzErr) { return BLOOM_respond(e, { status: 'error', message: 'could not decompress upload: ' + (gzErr && gzErr.message ? gzErr.message : gzErr) }); }
+        }
+        var check2 = BLOOM_validateBlob(json2);
         if (check2) return BLOOM_respond(e, { status: 'error', message: check2 });
+        // dry=1: check that the upload decodes and validates, without writing anything
+        if (String(p.dry || '') === '1') {
+          BLOOM_clearChunkCache(n, p.u);
+          return BLOOM_respond(e, { status: 'ok', dry: true, length: json2.length });
+        }
         BLOOM_ensureMigrated_();
-        var info2 = BLOOM_writeBlob(assembled.json);
-        BLOOM_clearChunkCache(n);
+        var info2 = BLOOM_writeBlob(json2);
+        BLOOM_clearChunkCache(n, p.u);
         return BLOOM_respond(e, { status: 'ok', length: info2.length, chunks: info2.chunks, lastSaved: info2.lastSaved });
       }
 
@@ -4946,21 +4965,34 @@ function BLOOM_respond(e, obj) {
 }
 
 // ---------------------------------------------------------------
-// Chunked upload (client sends 1200-char pieces, then dca_save_done)
+// Chunked upload (client sends pieces, then dca_save_done)
 // ---------------------------------------------------------------
-function BLOOM_assembleChunks(n) {
+// u = per-upload id from the client. Chunk keys include it, so two uploads in flight at
+// once (phone + desktop, or a page-hide beacon racing a normal save) never mix their
+// chunks. Old clients send no u and use the original shared keys.
+function BLOOM_chunkKey_(u, idx) {
+  u = String(u || '');
+  return /^[A-Za-z0-9_-]{1,40}$/.test(u) ? 'bloom_chunk_' + u + '_' + idx : 'bloom_chunk_' + idx;
+}
+
+function BLOOM_gunzipB64_(b64) {
+  var bytes = Utilities.base64Decode(b64);
+  return Utilities.ungzip(Utilities.newBlob(bytes, 'application/x-gzip')).getDataAsString('UTF-8');
+}
+
+function BLOOM_assembleChunks(n, u) {
   var cache = CacheService.getScriptCache();
   var keys = [];
-  for (var i = 0; i < n; i++) keys.push('bloom_chunk_' + i);
-  // The page-hide "beacon" path fires all chunks at once, so a couple may still be
-  // landing when dca_save_done arrives. Retry briefly before giving up.
+  for (var i = 0; i < n; i++) keys.push(BLOOM_chunkKey_(u, i));
+  // The client sends chunks in parallel and the page-hide beacon fires chunks and
+  // dca_save_done at once, so a few may still be landing. Retry briefly before giving up.
   var parts = null, missing = [];
-  for (var attempt = 0; attempt < 4; attempt++) {
+  for (var attempt = 0; attempt < 6; attempt++) {
     var got = cache.getAll(keys);
     missing = [];
     parts = [];
     for (var j = 0; j < n; j++) {
-      var v = got['bloom_chunk_' + j];
+      var v = got[keys[j]];
       if (v === null || v === undefined) missing.push(j); else parts.push(v);
     }
     if (missing.length === 0) break;
@@ -4970,9 +5002,9 @@ function BLOOM_assembleChunks(n) {
   return { json: parts.join('') };
 }
 
-function BLOOM_clearChunkCache(n) {
+function BLOOM_clearChunkCache(n, u) {
   var keys = [];
-  for (var i = 0; i < n; i++) keys.push('bloom_chunk_' + i);
+  for (var i = 0; i < n; i++) keys.push(BLOOM_chunkKey_(u, i));
   try { CacheService.getScriptCache().removeAll(keys); } catch (e) {}
 }
 
