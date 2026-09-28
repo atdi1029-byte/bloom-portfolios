@@ -798,6 +798,7 @@
         .history-type.dca { background: rgba(91,164,230,0.12); color: var(--sky); }
         .history-type.div { background: rgba(92,140,106,0.12); color: var(--leaf); }
         .history-type.sell { background: rgba(212,90,90,0.12); color: var(--red); }
+        .history-type.sync { background: rgba(138,186,150,0.16); color: var(--leaf); }
         .history-undo { font-size: 0.55rem; padding: 2px 8px; border-radius: 8px; border: 1px solid var(--red); color: var(--red); background: rgba(212,90,90,0.08); cursor: pointer; font-weight: 700; white-space: nowrap; margin-left: 6px; }
         .history-undo:active { background: rgba(212,90,90,0.25); }
 
@@ -2828,6 +2829,7 @@ function undoTransaction(historyId) {
     const idx = data.history.findIndex(h => h.id === historyId);
     if (idx === -1) { alert('Transaction not found'); return; }
     const h = data.history[idx];
+    if (_isReconcile(h)) return; // a Robinhood sync isn't a trade that can be reversed
     const pd = data.portfolios[h.portfolio];
     if (!pd) { alert('Portfolio not found'); return; }
     if (h.type === 'sell') {
@@ -2885,9 +2887,11 @@ function renderHistory() {
     const data = loadData();
     const body = document.getElementById('historyBody');
     const entries = [];
-    data.history.filter(h => h.portfolio === currentPortfolio).forEach(h => {
+    data.history.filter(h => h.portfolio === currentPortfolio || _isReconcile(h)).forEach(h => {
         const dateStr = new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-        if (h.type === 'sell') {
+        if (_isReconcile(h)) {
+            entries.push({ id: h.id, date: new Date(h.date), dateStr, detail: h.note || 'Holdings set to match Robinhood', amount: '', type: 'sync', canUndo: false });
+        } else if (h.type === 'sell') {
             entries.push({ id: h.id, date: new Date(h.date), dateStr, detail: 'Sold ' + h.ticker + ' (' + h.shares.toFixed(4) + ' @ ' + fmt(h.price) + ')', amount: fmt(h.totalAmount), type: 'sell', canUndo: true });
         } else {
             const detail = h.allocations ? h.allocations.map(a => a.ticker + ' ' + fmt(a.amount)).join(', ') : 'DCA';
@@ -2906,7 +2910,7 @@ function renderHistory() {
             else undoBtn = `<span class="history-undo" onclick="undoTransaction('${e.id}')">Undo</span>`;
         }
         return `<div class="history-item">
-            <div><span class="history-date">${e.dateStr}</span> <span class="history-type ${e.type}">${e.type === 'dca' ? 'DCA' : e.type === 'sell' ? 'SELL' : 'DIV'}</span></div>
+            <div><span class="history-date">${e.dateStr}</span> <span class="history-type ${e.type}">${e.type === 'dca' ? 'DCA' : e.type === 'sell' ? 'SELL' : e.type === 'sync' ? 'SYNC' : 'DIV'}</span></div>
             <div class="history-detail">${e.detail}</div>
             <div style="display:flex; align-items:center;"><span class="history-amount">${e.amount}</span>${undoBtn}</div>
         </div>`;
@@ -3806,10 +3810,11 @@ function _syncSig(d) {
 }
 // Drift-rebalance sells ('sell_<time>_<TICKER>') buy straight back in, so no cash moves
 const _isRebalanceSell = h => /^sell_\d+_/.test(h.id || '');
+const _isReconcile = h => h && h.type === 'reconcile';
 // Apply one logged trade to a copy's holdings, the same way it was applied when logged
 function _replayTrade(d, x) {
     const pk = x.portfolio;
-    if (!pk) return;
+    if (!pk || _isReconcile(x)) return;
     const pd = d.portfolios[pk] = d.portfolios[pk] || { holdings: {} };
     pd.holdings = pd.holdings || {};
     const hold = t => (pd.holdings[t] = pd.holdings[t] || { shares: 0, costBasis: 0 });
@@ -3831,6 +3836,7 @@ function _replayTrade(d, x) {
 }
 function _describeTrade(x) {
     const when = (x.date || '').slice(5, 10).replace('-', '/');
+    if (_isReconcile(x)) return 'Robinhood sync ' + when;
     if (x.type === 'sell') return 'sell ' + x.ticker + ' ' + when;
     if (x.allocations) return 'buy ' + x.allocations.map(a => a.ticker).slice(0, 3).join('/') + ' ' + when;
     return (x.ticker || '?') + ' dividend ' + when;
@@ -3843,11 +3849,17 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
     const live = arr => (arr || []).filter(x => x && !gone.has(x.id));
     const lh = live(local.history), ch = live(cloud.history);
     const ld = live(local.dividendHistory), cd = live(cloud.dividendHistory);
-    const localOnly = [..._unseenBy(lh, ch), ..._unseenBy(ld, cd)];
-    const cloudOnly = [..._unseenBy(ch, lh), ..._unseenBy(cd, ld)];
+    // A Robinhood sync ('reconcile' entry) set every holding to the real account, so trades
+    // logged before it are already counted in it; only later ones can still be missing
+    const syncedAt = [...lh, ...ch].filter(_isReconcile).map(x => x.date || '').sort().pop() || '';
+    const sinceSync = x => _isReconcile(x) || (x.date || '') > syncedAt;
+    const localOnly = [..._unseenBy(lh, ch), ..._unseenBy(ld, cd)].filter(sinceSync);
+    const cloudOnly = [..._unseenBy(ch, lh), ..._unseenBy(cd, ld)].filter(sinceSync);
     const localMod = local.lastModified || 0, cloudMod = cloud.lastModified || 0;
     let cloudWins;
     if (forceRestore) cloudWins = true;
+    else if (cloudOnly.some(_isReconcile)) cloudWins = true;   // the copy with the newest Robinhood sync
+    else if (localOnly.some(_isReconcile)) cloudWins = false;
     else if (cloudOnly.length && !localOnly.length) cloudWins = true;
     else if (localOnly.length && !cloudOnly.length) cloudWins = false;
     else cloudWins = cloudMod >= localMod;
