@@ -170,6 +170,12 @@
         .status-dot.ok { background: var(--leaf); }
         .status-dot.loading { background: var(--rose); animation: pulse 1s infinite; }
         .status-dot.error { background: var(--red); }
+        .rh-match {
+            font-size: 0.58rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+            background: rgba(92,140,106,0.14); color: var(--leaf);
+        }
+        .rh-match:empty { display: none; }
+        .rh-match.stale { background: rgba(212,168,67,0.2); color: #b07d12; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         /* ============ CARD BASE ============ */
@@ -916,6 +922,7 @@
                 <option value="stocks">Flywheel</option>
             </select>
             <span><span class="status-dot loading" id="statusDot"></span><span id="statusText">Loading...</span></span>
+            <span class="rh-match" id="rhMatch" title="When holdings were last set to match Robinhood. Send Claude your Robinhood screenshots and say &quot;bloom sync&quot; to update."></span>
             <button class="btn" onclick="refreshPrices()">Refresh</button>
             <button class="btn btn-green" onclick="forcePushToCloud()">↑ Push</button>
             <button class="btn" onclick="forceRestoreFromCloud()" style="background:#e8944c;color:#fff;">↓ Restore</button>
@@ -997,11 +1004,7 @@
         <div class="dca-input-row">
             <span style="color:#f5e6c8; font-size:0.85rem; font-weight:700; text-shadow: 0 1px 4px rgba(0,0,0,0.2);">New $ </span>
             <input type="text" class="dca-input" id="dcaAmount" placeholder="⋆⁺₊⋆ ☾⋆⁺₊⋆" inputmode="decimal">
-            <span style="color:var(--text-dim); font-size:0.65rem; font-weight:500;" id="dcaCashInfo"></span>
             <button class="btn btn-primary" onclick="previewDCA()">Preview Allocation</button>
-            <label style="font-size:0.65rem; color:var(--text-dim); display:none; align-items:center; gap:4px; font-weight:600;">
-                <input type="checkbox" id="dcaUseCash" checked> Use cash
-            </label>
         </div>
         <div id="dcaPreview" style="display:none;">
             <table class="alloc-table">
@@ -1351,7 +1354,6 @@ let divLogTicker = '';
 function _splitSave(data) {
     var core = {
         portfolios: data.portfolios || {},
-        cash: data.cash || {},
         splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
         splitterTotal: data.splitterTotal || '',
         lastModified: data.lastModified,
@@ -1405,7 +1407,7 @@ function saveData(data, immediate, keepModified) {
     if (!keepModified) data.lastModified = Date.now();
     // Trim arrays — hard caps to control quota usage
     if (data.history && data.history.length > MAX_HISTORY) {
-        data.history = data.history.slice(-MAX_HISTORY);
+        data.history = _trimHistory(data.history);
     }
     if (data.dividendHistory && data.dividendHistory.length > MAX_HISTORY) {
         data.dividendHistory = data.dividendHistory.slice(-MAX_HISTORY);
@@ -1463,7 +1465,6 @@ function hasRealData(data) {
 function _buildSavePayload(data) {
     return {
         portfolios: data.portfolios,
-        cash: data.cash || {},
         splitterRatios: data.splitterRatios || DEFAULT_RATIOS,
         splitterTotal: data.splitterTotal || '',
         history: data.history || [],
@@ -1856,31 +1857,12 @@ function getTotalInvested() {
     for (const h of Object.values(pd.holdings)) total += h.costBasis;
     return total;
 }
-function getCash() {
-    const data = loadData();
-    if (!data.cash) data.cash = {};
-    return data.cash[currentPortfolio] || 0;
-}
-function addCash(amount) {
-    const data = loadData();
-    if (!data.cash) data.cash = {};
-    data.cash[currentPortfolio] = (data.cash[currentPortfolio] || 0) + amount;
-    saveData(data);
-}
-function spendCash(amount) {
-    const data = loadData();
-    if (!data.cash) data.cash = {};
-    const available = data.cash[currentPortfolio] || 0;
-    const spent = Math.min(amount, available);
-    data.cash[currentPortfolio] = available - spent;
-    saveData(data);
-    return spent;
-}
 function fmt(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtPct(n) { return n.toFixed(1) + '%'; }
 
 // ====== RENDER ALL ======
 function renderAll() {
+    renderRobinhoodMatch();
     renderProgress();
     renderStats();
     renderETFGrid();
@@ -1909,6 +1891,19 @@ function saveDismissedOpps() { _writeSet('bloom_dismissed_opps', dismissedOpps);
 function saveSeenBuyOpps() { _writeSet('bloom_seen_buy_opps', seenBuyOpps); }
 function saveSeenSellOpps() { _writeSet('bloom_seen_sell_opps', seenSellOpps); }
 
+
+// ====== ROBINHOOD MATCH ======
+// How long since holdings were last set to match Robinhood (a 'reconcile' history entry).
+// Amber after 2 weeks: anything bought or sold in Robinhood without logging it here drifts.
+function renderRobinhoodMatch() {
+    const el = document.getElementById('rhMatch');
+    if (!el) return;
+    const last = (loadData().history || []).filter(_isReconcile).map(h => h.date || '').sort().pop();
+    if (!last) { el.textContent = 'Not matched to Robinhood yet'; el.className = 'rh-match stale'; return; }
+    const days = Math.floor((Date.now() - new Date(last).getTime()) / 86400000);
+    el.textContent = 'Matched to Robinhood ' + (days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');
+    el.className = 'rh-match' + (days > 14 ? ' stale' : '');
+}
 
 // ====== PROGRESS BAR ======
 function renderProgress() {
@@ -1983,24 +1978,6 @@ function renderStats() {
         special.style.display = 'none';
     }
     special.parentElement.classList.toggle('three', special.style.display === 'none');
-    const cashInfo = document.getElementById('dcaCashInfo');
-    const cashCheckbox = document.getElementById('dcaUseCash').parentElement;
-    const isStocks = currentPortfolio === 'stocks';
-    const cash = getCash();
-    if (isStocks) {
-        if (cash > 0) {
-            cashInfo.textContent = 'Cash: ' + fmt(cash);
-            cashInfo.style.color = 'var(--rose-deep)';
-            cashCheckbox.style.display = '';
-        } else {
-            cashInfo.textContent = '';
-            cashCheckbox.style.display = '';
-        }
-    } else {
-        cashInfo.textContent = '';
-        cashCheckbox.style.display = 'none';
-        document.getElementById('dcaUseCash').checked = false;
-    }
 }
 
 // ====== ETF GRID ======
@@ -2110,10 +2087,7 @@ function calcValuationScore(ticker) {
 // ====== SMART DCA ALGORITHM ======
 async function previewDCA() {
     await refreshPrices(); // Always get fresh prices before calculating
-    const newMoney = parseFloat(document.getElementById('dcaAmount').value.replace(/,/g, '')) || 0;
-    const useCash = document.getElementById('dcaUseCash').checked;
-    const cashToUse = useCash ? getCash() : 0;
-    const investAmount = newMoney + cashToUse;
+    const investAmount = parseFloat(document.getElementById('dcaAmount').value.replace(/,/g, '')) || 0;
     if (investAmount <= 0) return;
     const pDef = getPortfolioDef();
     const pd = getPortfolioData();
@@ -2171,7 +2145,7 @@ async function previewDCA() {
         const found = eligible.find(x => x.ticker === e.ticker);
         return { ticker: e.ticker, gapScore: e.gapScore, rawGap: e.rawGap, valScore: e.valScore, composite: e.composite, amount: found ? found.rawAlloc : 0, shares: getPrice(e.ticker) > 0 ? ((found ? found.rawAlloc : 0) / getPrice(e.ticker)) : 0, price: getPrice(e.ticker) };
     });
-    pendingDCA = { totalAmount: effectiveAmount, allocations: allAlloc, cashUsed: cashToUse };
+    pendingDCA = { totalAmount: effectiveAmount, allocations: allAlloc };
     const maxComp = Math.max(...etfScores.map(e => e.composite), 0.01);
     const tbody = document.getElementById('dcaTableBody');
     tbody.innerHTML = '';
@@ -2188,8 +2162,6 @@ async function previewDCA() {
         tbody.appendChild(tr);
     });
     let summaryText = `Total: ${fmt(allAlloc.reduce((s, a) => s + a.amount, 0))}`;
-    if (cashToUse > 0 && newMoney > 0) summaryText += ` (${fmt(newMoney)} new + ${fmt(cashToUse)} cash)`;
-    else if (cashToUse > 0) summaryText += ' (from cash)';
     if (effectiveAmount < investAmount) summaryText += ` — capped to ${fmt(effectiveAmount)}`;
     document.getElementById('dcaSummary').textContent = summaryText;
     document.getElementById('dcaPreview').style.display = 'block';
@@ -2208,8 +2180,7 @@ function confirmDCA() {
         pd.holdings[a.ticker].shares += a.shares;
         pd.holdings[a.ticker].costBasis += a.amount;
     });
-    data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: pendingDCA.totalAmount, type: 'dca', allocations: pendingDCA.allocations.filter(a => a.amount > 0).map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })), cashUsed: pendingDCA.cashUsed || 0 });
-    if (pendingDCA.cashUsed > 0) { if (!data.cash) data.cash = {}; data.cash[currentPortfolio] = Math.max(0, (data.cash[currentPortfolio] || 0) - pendingDCA.cashUsed); }
+    data.history.push({ id: 'dca_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: pendingDCA.totalAmount, type: 'dca', allocations: pendingDCA.allocations.filter(a => a.amount > 0).map(a => ({ ticker: a.ticker, amount: a.amount, shares: a.shares, price: a.price })) });
     saveData(data);
     pendingDCA = null;
     document.getElementById('dcaPreview').style.display = 'none';
@@ -2330,8 +2301,6 @@ async function confirmSell() {
     h.costBasis -= sharesToSell * avgCost;
     if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
     data.history.push({ id: 'sell_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, totalAmount: amount, type: 'sell', ticker: sellTicker, shares: sharesToSell, price, profit });
-    if (!data.cash) data.cash = {};
-    data.cash[currentPortfolio] = (data.cash[currentPortfolio] || 0) + amount;
     saveData(data, true);
     closeSellModal();
     renderAll();
@@ -2839,10 +2808,6 @@ function undoTransaction(historyId) {
             pd.holdings[h.ticker].shares += h.shares;
             pd.holdings[h.ticker].costBasis += avgCost * h.shares;
         }
-        // Remove cash that was added from the sell (rebalance sells never added any)
-        if (!_isRebalanceSell(h) && data.cash && data.cash[h.portfolio]) {
-            data.cash[h.portfolio] = Math.max(0, data.cash[h.portfolio] - h.totalAmount);
-        }
     } else {
         // Undo DCA/buy: subtract shares and cost basis
         (h.allocations || []).forEach(a => {
@@ -2852,11 +2817,6 @@ function undoTransaction(historyId) {
                 if (pd.holdings[a.ticker].shares < 0.0001) { pd.holdings[a.ticker].shares = 0; pd.holdings[a.ticker].costBasis = 0; }
             }
         });
-        // Restore cash that was used for this buy
-        if (h.cashUsed > 0) {
-            if (!data.cash) data.cash = {};
-            data.cash[h.portfolio] = (data.cash[h.portfolio] || 0) + h.cashUsed;
-        }
     }
     data.history.splice(idx, 1);
     data.deletedIds = [...(data.deletedIds || []), h.id].slice(-MAX_DELETED_IDS); // so a sync can't bring it back
@@ -3804,13 +3764,18 @@ function _unseenBy(mine, theirs) {
     return mine.filter(x => !ids.has(x.id) && (x.date || '') >= oldest);
 }
 function _syncSig(d) {
-    return JSON.stringify([d.portfolios, d.cash || {}, d.splitterRatios || null, d.splitterTotal || '',
+    return JSON.stringify([d.portfolios, d.splitterRatios || null, d.splitterTotal || '',
         (d.history || []).length, (d.dividendHistory || []).length, (d.valueSnapshots || []).length,
         (d.deletedIds || []).length, d.lastModified || 0]);
 }
-// Drift-rebalance sells ('sell_<time>_<TICKER>') buy straight back in, so no cash moves
-const _isRebalanceSell = h => /^sell_\d+_/.test(h.id || '');
 const _isReconcile = h => h && h.type === 'reconcile';
+// Keep the newest MAX_HISTORY entries, plus the latest Robinhood sync if it's older than that
+function _trimHistory(arr) {
+    if (arr.length <= MAX_HISTORY) return arr;
+    const kept = arr.slice(-MAX_HISTORY);
+    const sync = arr.filter(_isReconcile).pop();
+    return sync && !kept.includes(sync) ? [sync, ...kept.slice(1)] : kept;
+}
 // Apply one logged trade to a copy's holdings, the same way it was applied when logged
 function _replayTrade(d, x) {
     const pk = x.portfolio;
@@ -3818,16 +3783,13 @@ function _replayTrade(d, x) {
     const pd = d.portfolios[pk] = d.portfolios[pk] || { holdings: {} };
     pd.holdings = pd.holdings || {};
     const hold = t => (pd.holdings[t] = pd.holdings[t] || { shares: 0, costBasis: 0 });
-    d.cash = Object.assign({}, d.cash || {});
     if (x.type === 'sell') {
         const h = hold(x.ticker);
         h.shares = Math.max(0, h.shares - (x.shares || 0));
         h.costBasis = Math.max(0, h.costBasis - ((x.totalAmount || 0) - (x.profit || 0)));
         if (h.shares < 0.0001) { h.shares = 0; h.costBasis = 0; }
-        if (!_isRebalanceSell(x)) d.cash[pk] = (d.cash[pk] || 0) + (x.totalAmount || 0);
     } else if (x.allocations) {
         x.allocations.forEach(a => { const h = hold(a.ticker); h.shares += a.shares || 0; h.costBasis += a.amount || 0; });
-        if (x.cashUsed > 0) d.cash[pk] = Math.max(0, (d.cash[pk] || 0) - x.cashUsed);
     } else if (x.ticker) { // dividend, reinvested into buyTicker
         const h = hold(x.buyTicker || x.ticker);
         h.shares += x.shares || 0;
@@ -3871,7 +3833,7 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
         const m = new Map();
         a.forEach(x => m.set(x.id, x));
         b.forEach(x => m.set(x.id, x));
-        return Array.from(m.values()).sort((x, y) => (x.date || '').localeCompare(y.date || '')).slice(-MAX_HISTORY);
+        return _trimHistory(Array.from(m.values()).sort((x, y) => (x.date || '').localeCompare(y.date || '')));
     };
     base.history = union(lh, ch);
     base.dividendHistory = union(ld, cd);
