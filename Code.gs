@@ -470,6 +470,12 @@ function doGet_orig(e) {
     return serveDcaPricesJSON_(e.parameter.extra || '');
   }
 
+  if (action === 'setup_dca') {
+    var n = setupDcaSheet();
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, tickers: n }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   if (action === 'toggle_dca') {
     var mode  = e.parameter.mode  || 'false';
     var total = e.parameter.total || '0';
@@ -3065,7 +3071,9 @@ function setupDcaSheet() {
   sheet.getRange('A1:E1').setFontWeight('bold');
   sheet.setFrozenRows(1);
   for (var c = 1; c <= 5; c++) sheet.autoResizeColumn(c);
-  SpreadsheetApp.getUi().alert('DCA Portfolio sheet created with GOOGLEFINANCE formulas for ' + DCA_TICKERS.length + ' ETFs.');
+  // getUi() throws when run from the web app (?action=setup_dca), so the alert is best-effort
+  try { SpreadsheetApp.getUi().alert('DCA Portfolio sheet created with GOOGLEFINANCE formulas for ' + DCA_TICKERS.length + ' ETFs.'); } catch (err) {}
+  return DCA_TICKERS.length;
 }
 
 // ---------------------------------------------------------------
