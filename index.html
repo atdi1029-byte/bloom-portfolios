@@ -1048,7 +1048,7 @@
         </div>
         <div class="chart-card growth-card">
             <div class="growth-controls">
-                <button class="growth-scope" id="growthModeBtn" onclick="toggleGrowthMode()">All Portfolios</button>
+                <button class="growth-scope on" id="growthModeBtn" onclick="toggleGrowthMode()">This Portfolio</button>
                 <div class="growth-range-btns" role="tablist" aria-label="Growth range">
                     <div class="growth-range-ind" id="growthRangeInd"></div>
                     <button class="growth-range-btn" onclick="setGrowthRange('1M')">1M</button>
@@ -2875,7 +2875,7 @@ function renderPieChart() {
 // live point for right now. A DCA moves value and cost together, so deposits don't show up
 // as growth: the curve only moves when the market does. Same idea as the crypto app's P&L
 // chart, drawn in the sage green from the Cushion's allocation pie (VTIP).
-let growthShowAll = false;   // false = current portfolio, true = all four combined
+let growthShowAll = true;    // true = all four combined (default), false = current portfolio
 let growthRange = 'All';
 let growthSeries = [];       // points currently drawn
 let growthXs = [], growthYs = [];
