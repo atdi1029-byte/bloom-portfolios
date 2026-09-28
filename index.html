@@ -577,7 +577,7 @@
         }
         .etf-detail-label { color: var(--text-dim); font-weight: 700; }
         .etf-detail-value { color: var(--text-bright); text-align: right; font-weight: 700; font-family: 'Cormorant Garamond', serif; font-size: 0.95rem; }
-        .etf-div-btn, .etf-sell-btn {
+        .etf-sell-btn {
             margin-top: 0.5rem;
             font-size: 0.55rem;
             padding: 4px 8px;
@@ -1132,23 +1132,6 @@
     </div>
 </div>
 
-<!-- DIVIDEND MODAL -->
-<div class="modal-overlay" id="divModal" onclick="if(event.target===this)closeDivModal()">
-    <div class="modal">
-        <div class="modal-title" id="divModalTitle">Log Dividend</div>
-        <div class="div-modal-info">Enter the dividend amount received. Shares will be calculated from current price.</div>
-        <div id="divRedirectInfo" style="display:none;background:rgba(255,255,255,0.07);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:0.92em;line-height:1.5;color:rgba(200,228,255,0.9)"></div>
-        <div class="modal-row">
-            <label>Amount $</label>
-            <input type="text" class="modal-input" id="divAmount" placeholder="45.00" inputmode="decimal">
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-red" onclick="closeDivModal()">Cancel</button>
-            <button class="btn btn-green" onclick="confirmDividend()">Log Dividend</button>
-        </div>
-    </div>
-</div>
-
 <script>
 // ====== CONFIG ======
 const API_BASE = 'https://script.google.com/macros/s/AKfycbyeL8nGHmsRRG2uk7I3cuh2aWQ14RRKvJYwOblvOWw36_QIKyr9KaA4jXK1K5pyySNiBg/exec';
@@ -1180,7 +1163,6 @@ const PORTFOLIOS = {
             SGOV: { pct: 11, purpose: 'T-bills (safest)' },
             VOO:  { pct: 8,  purpose: 'S&P 500' }
         },
-        dividendReinvest: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'VOO'],
         order: ['JPST', 'VTIP', 'SPSB', 'DGRO', 'SCHD', 'SGOV', 'VOO']
     },
     growth: {
@@ -1194,7 +1176,6 @@ const PORTFOLIOS = {
             SCHD: { pct: 11, purpose: 'Dividend compounder' },
             VO:   { pct: 3,  purpose: 'Mid-cap stocks' }
         },
-        dividendReinvest: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'VO'],
         order: ['VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'VO']
     },
     ira: {
@@ -1209,7 +1190,6 @@ const PORTFOLIOS = {
             BND:  { pct: 10, purpose: 'Total bond market' },
             VTIP: { pct: 10, purpose: 'Inflation-protected bonds' }
         },
-        dividendReinvest: ['SCHD', 'JEPI', 'JEPQ', 'VNQ', 'BND', 'VTIP'],
         order: ['SCHD', 'JEPI', 'JEPQ', 'VNQ', 'GLDM', 'BND', 'VTIP']
     },
     stocks: {
@@ -1310,7 +1290,6 @@ const PORTFOLIOS = {
             AME:  { pct: 2,  purpose: 'AMETEK — electronic instruments and motors, disciplined serial acquirer' },
             FDX:  { pct: 2,  purpose: 'FedEx — global parcel and express delivery, cost-cutting turnaround' }
         },
-        dividendReinvest: ['NVDA', 'MSFT', 'AAPL', 'GOOG', 'META', 'JPM', 'UNH', 'LLY', 'COST', 'PG', 'TSM', 'AVGO', 'XOM', 'CVX', 'V', 'CAT', 'DE', 'UNP', 'INTC', 'HD', 'DIS', 'WMT', 'DELL', 'IBM', 'KO', 'MCD', 'JNJ', 'WM', 'O', 'LOW', 'TGT', 'MA', 'TLT', 'BAC', 'MS', 'GS', 'SBUX', 'PEP', 'EQIX', 'HPQ', 'ROST', 'DLTR', 'DUK', 'SO', 'WELL', 'DLR', 'DHR', 'NSC', 'CL', 'MDLZ', 'SYY', 'GLW', 'APH', 'JBL', 'MCHP', 'NXPI', 'MPWR', 'ENTG', 'LFUS', 'ST', 'RVTY', 'NVO', 'CB', 'ODFL', 'AMGN', 'ETN', 'PWR', 'EMR', 'AME', 'FDX'],
         order: ['NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'JPM', 'GS', 'MS', 'BAC', 'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'GDXJ', 'SIL', 'SMH', 'EWZ', 'IBIT', 'SLV', 'TSLA', 'CPER', 'TSM', 'AVGO', 'XOM', 'CVX', 'V', 'CAT', 'DE', 'UNP', 'NSC', 'INTC', 'HD', 'BA', 'DIS', 'WMT', 'SLX', 'DELL', 'IBM', 'KO', 'MCD', 'JNJ', 'CL', 'MDLZ', 'SYY', 'ROST', 'DLTR', 'DUK', 'SO', 'WM', 'O', 'EQIX', 'DLR', 'WELL', 'DHR', 'LOW', 'TGT', 'MA', 'TLT', 'SBUX', 'PEP', 'DECK', 'HPQ', 'CPAY', 'GLW', 'APH', 'KEYS', 'JBL', 'ARW', 'INCY', 'MCHP', 'NXPI', 'SNPS', 'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY', 'NVO', 'CB', 'ODFL', 'AMGN', 'ETN', 'PWR', 'EMR', 'AME', 'FDX']
     }
 };
@@ -1348,7 +1327,6 @@ function tickerColor(t) {
 let currentPortfolio = 'cushion';
 let livePrices = {};
 let pendingDCA = null;
-let divLogTicker = '';
 
 // ====== STORAGE ======
 function _splitSave(data) {
@@ -2012,7 +1990,6 @@ function renderETFGrid() {
         const barClass = Math.abs(drift) < 3 ? 'on' : drift > 0 ? 'over' : 'under';
         const changeClass = changePct > 0 ? 'up' : changePct < 0 ? 'down' : 'flat';
         const changeStr = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
-        const isDivETF = pDef.dividendReinvest.includes(ticker);
         const pnlPct = costBasis > 0 ? ((value - costBasis) / costBasis * 100) : 0;
         const isTakeProfit = pnlPct >= 50 && valScore < 0.40;
         const isDriftHigh = currentPct >= targetPct * 2 && totalVal > 1000;
@@ -2053,7 +2030,6 @@ function renderETFGrid() {
             </div>
             <div style="flex:1;"></div>
             <div style="display:flex; gap:0.5rem;">
-                ${isDivETF ? `<button class="btn btn-green etf-div-btn" onclick="openDivModal('${ticker}')">Log Dividend</button>` : ''}
                 ${h.shares > 0 ? `<button class="btn btn-red etf-sell-btn" onclick="openSellModal('${ticker}')">Sell</button>` : ''}
             </div>
         `;
@@ -2185,76 +2161,6 @@ function confirmDCA() {
     pendingDCA = null;
     document.getElementById('dcaPreview').style.display = 'none';
     document.getElementById('dcaAmount').value = '';
-    renderAll();
-}
-
-// ====== DIVIDEND LOGGING ======
-function openDivModal(ticker) {
-    divLogTicker = ticker;
-    document.getElementById('divModalTitle').textContent = 'Log Dividend — ' + ticker;
-    document.getElementById('divAmount').value = '';
-    const infoEl = document.getElementById('divRedirectInfo');
-    if (currentPortfolio === 'cushion' && !['SCHD', 'VOO'].includes(ticker)) {
-        const pd = loadData().portfolios.cushion;
-        const pDef = PORTFOLIOS.cushion;
-        let totalVal = 0;
-        Object.keys(pDef.targets).forEach(t => {
-            const h = pd.holdings[t] || { shares: 0 };
-            totalVal += h.shares * getPrice(t);
-        });
-        const schdPct = totalVal > 0 ? ((pd.holdings.SCHD || { shares: 0 }).shares * getPrice('SCHD') / totalVal) * 100 : 0;
-        const vooPct = totalVal > 0 ? ((pd.holdings.VOO || { shares: 0 }).shares * getPrice('VOO') / totalVal) * 100 : 0;
-        const schdGap = pDef.targets.SCHD.pct - schdPct;
-        const vooGap = pDef.targets.VOO.pct - vooPct;
-        const pick = schdGap >= vooGap ? 'SCHD' : 'VOO';
-        const other = pick === 'SCHD' ? 'VOO' : 'SCHD';
-        const pickGap = pick === 'SCHD' ? schdGap : vooGap;
-        const otherGap = pick === 'SCHD' ? vooGap : schdGap;
-        const fmtGap = (g) => g >= 0 ? g.toFixed(1) + '% under target' : Math.abs(g).toFixed(1) + '% over target';
-        infoEl.innerHTML = '→ Reinvesting into <strong>' + pick + '</strong><br>' +
-            pick + ': ' + fmtGap(pickGap) + ' · ' +
-            other + ': ' + fmtGap(otherGap);
-        infoEl.style.display = 'block';
-    } else {
-        infoEl.style.display = 'none';
-    }
-    document.getElementById('divModal').classList.add('show');
-}
-function closeDivModal() { document.getElementById('divModal').classList.remove('show'); divLogTicker = ''; }
-function getDividendTarget(sourceTicker) {
-    // 4-Year Cushion: bond/short-term dividends go to whichever of SCHD/VOO is more underweight
-    if (currentPortfolio === 'cushion' && !['SCHD', 'VOO'].includes(sourceTicker)) {
-        const pd = loadData().portfolios.cushion;
-        const pDef = PORTFOLIOS.cushion;
-        let totalVal = 0;
-        Object.keys(pDef.targets).forEach(t => {
-            const h = pd.holdings[t] || { shares: 0 };
-            totalVal += h.shares * getPrice(t);
-        });
-        if (totalVal <= 0) return 'SCHD';
-        const schdPct = ((pd.holdings.SCHD || { shares: 0 }).shares * getPrice('SCHD') / totalVal) * 100;
-        const vooPct = ((pd.holdings.VOO || { shares: 0 }).shares * getPrice('VOO') / totalVal) * 100;
-        const schdGap = pDef.targets.SCHD.pct - schdPct;
-        const vooGap = pDef.targets.VOO.pct - vooPct;
-        return schdGap >= vooGap ? 'SCHD' : 'VOO';
-    }
-    return sourceTicker;
-}
-async function confirmDividend() {
-    const amount = parseFloat(document.getElementById('divAmount').value.replace(/,/g, ''));
-    if (!amount || amount <= 0 || !divLogTicker) return;
-    await refreshPrices();
-    const buyTicker = getDividendTarget(divLogTicker);
-    const price = getPrice(buyTicker);
-    const shares = price > 0 ? amount / price : 0;
-    const data = loadData();
-    const pd = data.portfolios[currentPortfolio];
-    if (!pd.holdings[buyTicker]) pd.holdings[buyTicker] = { shares: 0, costBasis: 0 };
-    pd.holdings[buyTicker].shares += shares;
-    pd.holdings[buyTicker].costBasis += amount;
-    data.dividendHistory.push({ id: 'div_' + Date.now(), date: new Date().toISOString(), portfolio: currentPortfolio, ticker: divLogTicker, buyTicker, amount, shares, price });
-    saveData(data, true);
-    closeDivModal();
     renderAll();
 }
 
