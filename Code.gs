@@ -471,9 +471,23 @@ function doGet_orig(e) {
   }
 
   if (action === 'refresh_dca_tech') {
-    refreshDcaTechnicals();
-    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+    var rt = refreshDcaTechnicals();
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, count: rt.count, failed: rt.failed }))
       .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'dca_status') {
+    var trig;
+    try {
+      trig = ScriptApp.getProjectTriggers().map(function(tr) { return tr.getHandlerFunction() + ':' + tr.getEventType(); });
+    } catch (err) { trig = 'not authorized (run any function once in the editor to grant the triggers permission)'; }
+    var ts = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('DCA Technicals');
+    return ContentService.createTextOutput(JSON.stringify({
+      triggers: trig,
+      techUpdated: ts ? ts.getRange('I1').getValue() : '',
+      techFailed: ts ? ts.getRange('J1').getValue() : '',
+      tickers: DCA_TICKERS.length
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 
   if (action === 'setup_dca') {
@@ -2780,10 +2794,26 @@ function serveDcaPricesJSON_(extraParam) {
 
   // Build response — sheet prices + cached technicals (no Yahoo calls here)
   var etfs = [];
+  // Tickers added since the last daily refresh have no technicals yet. Compute a few per
+  // request and cache them, so a new ticker isn't scored on made-up neutral values.
+  // A ticker that fails is skipped for 6 hours so it can't slow every request.
+  var missingTech = DCA_TICKERS.filter(function(t) { return !techMap[t]; });
+  if (techSheet && missingTech.length > 0) {
+    var techCache = CacheService.getScriptCache();
+    missingTech.filter(function(t) { return !techCache.get('techfail_' + t); }).slice(0, 5).forEach(function(t) {
+      var mt = calcTechnicals_(t);
+      if (!mt.ok) { techCache.put('techfail_' + t, '1', 21600); return; }
+      var row = [t, Math.round(mt.rsi14 * 100) / 100, Math.round(mt.sma50 * 100) / 100, Math.round(mt.sma200 * 100) / 100, Math.round(mt.price * 100) / 100, Math.round(mt.high52 * 100) / 100, Math.round(mt.dss3d * 100) / 100];
+      techSheet.appendRow(row);
+      techMap[t] = { rsi14: row[1], sma50: row[2], sma200: row[3], price: row[4], high52: row[5], dss3d: row[6] };
+    });
+  }
+
   for (var t = 0; t < DCA_TICKERS.length; t++) {
     var ticker = DCA_TICKERS[t];
     var info = priceMap[ticker] || { price: 0, high52: 0, low52: 0, changePct: 0 };
-    var tech = techMap[ticker] || { rsi14: 50, sma50: 0, sma200: 0, price: 0, high52: 0, dss3d: 50 };
+    // null (not 50/0) when technicals are missing, so the app shows "No Data" instead of a fake score
+    var tech = techMap[ticker] || { rsi14: null, sma50: null, sma200: null, price: 0, high52: 0, dss3d: null };
 
     etfs.push({
       ticker: ticker,
@@ -2840,7 +2870,7 @@ function serveDcaPricesJSON_(extraParam) {
   }
 
   return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', etfs: etfs }))
+    .createTextOutput(JSON.stringify({ status: 'ok', etfs: etfs, techUpdated: techSheet ? techSheet.getRange('I1').getValue() : '' }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -2918,10 +2948,24 @@ function refreshDcaTechnicals() {
     if (!seen[DCA_TICKERS[i]]) { seen[DCA_TICKERS[i]] = true; unique.push(DCA_TICKERS[i]); }
   }
 
+  // Previous rows, so a failed Yahoo fetch keeps yesterday's numbers instead of writing RSI 50 / SMA 0
+  var prev = {};
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues().forEach(function(r) {
+      if (r[0]) prev[String(r[0]).toUpperCase().trim()] = r;
+    });
+  }
+
   var rows = [];
+  var failed = [];
   for (var i = 0; i < unique.length; i++) {
     var ticker = unique[i];
     var tech = calcTechnicals_(ticker);
+    if (!tech.ok) {
+      failed.push(ticker);
+      if (prev[ticker]) rows.push(prev[ticker]);
+      continue;
+    }
     rows.push([ticker, Math.round(tech.rsi14 * 100) / 100, Math.round(tech.sma50 * 100) / 100, Math.round(tech.sma200 * 100) / 100, Math.round(tech.price * 100) / 100, Math.round(tech.high52 * 100) / 100, Math.round(tech.dss3d * 100) / 100]);
   }
 
@@ -2932,6 +2976,8 @@ function refreshDcaTechnicals() {
   if (rows.length > 0) {
     sheet.getRange(2, 1, rows.length, 7).setValues(rows);
   }
+  sheet.getRange('H1:J1').setValues([['Updated', new Date(), failed.join(',')]]);
+  return { count: rows.length, failed: failed };
 }
 
 // ---------------------------------------------------------------
@@ -2939,12 +2985,14 @@ function refreshDcaTechnicals() {
 // RSI(14), SMA(50), SMA(200) for a given ticker.
 // ---------------------------------------------------------------
 function calcTechnicals_(ticker) {
-  var result = { rsi14: 50, sma50: 0, sma200: 0, price: 0, high52: 0, dss3d: 50 };
+  var result = { ok: false, rsi14: 50, sma50: 0, sma200: 0, price: 0, high52: 0, dss3d: 50 };
 
   try {
     var url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker +
               '?range=1y&interval=1d&includePrePost=false';
-    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    var opts = { muteHttpExceptions: true, headers: { 'User-Agent': 'Mozilla/5.0' } };
+    var resp = UrlFetchApp.fetch(url, opts);
+    if (resp.getResponseCode() !== 200) { Utilities.sleep(1500); resp = UrlFetchApp.fetch(url, opts); }
     var json = JSON.parse(resp.getContentText());
 
     var quote = json.chart.result[0].indicators.quote[0];
@@ -3032,6 +3080,7 @@ function calcTechnicals_(ticker) {
       for (var e2 = 1; e2 < raw2.length; e2++) dssLine.push(raw2[e2] * emaMult + dssLine[e2-1] * (1 - emaMult));
       result.dss3d = Math.round(dssLine[dssLine.length - 1] * 100) / 100;
     }
+    result.ok = true;
 
   } catch (err) {
     Logger.log('calcTechnicals_ error for ' + ticker + ': ' + err.message);
