@@ -2704,7 +2704,7 @@ var DCA_TICKERS = [
   'VTI', 'SCHG', 'VXUS', 'AVUV', 'SCHD', 'VO',
   // IRA (7)
   'JEPI', 'JEPQ', 'VNQ', 'GLDM', 'BND',
-  // Flywheel (54)
+  // Flywheel
   'NVDA', 'MSFT', 'AAPL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'JPM',
   'GS', 'MS', 'BAC',
   'UNH', 'LLY', 'COST', 'NFLX', 'PG', 'GLD', 'GDX', 'SMH', 'EWZ',
@@ -2717,7 +2717,8 @@ var DCA_TICKERS = [
   'ROST', 'DLTR', 'DUK', 'SO',
   'WELL', 'DLR', 'DHR',
   'CPAY', 'GLW', 'APH', 'KEYS', 'JBL', 'ARW', 'INCY',
-  'MCHP', 'NXPI', 'SNPS'
+  'MCHP', 'NXPI', 'SNPS',
+  'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY'
 ];
 
 // ---------------------------------------------------------------
@@ -4236,7 +4237,7 @@ function serveTideUniverseJSON_(callback) {
 // These wrap doGet_orig / doPost_orig above.
 // ============================================================================
 
-var DASHBOARD_ADDITIONS_VERSION = 'v2026-09-14-additions';
+var DASHBOARD_ADDITIONS_VERSION = 'v2026-09-24b-additions';
 
 var DASH_STATS_ENGINE = true;             // false = leave the original script's numbers untouched
 var DASH_POSITIONS_SHEET_ = 'Positions';  // tab name; found by its headers (Ticker + Outcome) if renamed
@@ -4306,13 +4307,17 @@ function serveDashboard_(e, bypass) {
     var hit = readDashCache_();
     if (hit) return dashJson_(annotateDash_(hit.json, { hit: true, builtAt: hit.builtAt, servedMs: Date.now() - t0 }));
   }
+  var genBefore = dashCacheGen_();
   var out = doGet_orig(e);
   var json = (out && typeof out.getContent === 'function') ? out.getContent() : null;
   if (!json) return out; // not a TextOutput — hand it back untouched
   if (DASH_STATS_ENGINE) json = applyStatsEngine_(json);
   var builtAt = new Date().toISOString();
   var buildMs = Date.now() - t0;
-  try { writeDashCache_(json, builtAt); } catch (err) { /* cache is best-effort */ }
+  // A write landed while this was building — don't cache the stale snapshot over the invalidation
+  if (dashCacheGen_() === genBefore) {
+    try { writeDashCache_(json, builtAt); } catch (err) { /* cache is best-effort */ }
+  }
   return dashJson_(annotateDash_(json, { hit: false, builtAt: builtAt, buildMs: buildMs }));
 }
 
@@ -4361,7 +4366,15 @@ function readDashCache_() {
 }
 
 function invalidateDashboardCache_() {
-  try { CacheService.getScriptCache().remove(DASH_CACHE_KEY_ + '_meta'); } catch (err) { /* ignore */ }
+  try {
+    var cache = CacheService.getScriptCache();
+    cache.remove(DASH_CACHE_KEY_ + '_meta');
+    cache.put(DASH_CACHE_KEY_ + '_gen', String(Date.now()) + Math.random(), 21600);
+  } catch (err) { /* ignore */ }
+}
+
+function dashCacheGen_() {
+  try { return CacheService.getScriptCache().get(DASH_CACHE_KEY_ + '_gen') || ''; } catch (err) { return ''; }
 }
 
 function warmDashboardCache_() {
@@ -4469,24 +4482,31 @@ function dashPositions_() {
 }
 
 function dashCloseTime_(r) {
-  var m = /closed (\d{4}-\d{2}-\d{2} \d{2}:\d{2})/.exec(r.notes || '');
-  var d = m ? new Date(m[1].replace(' ', 'T')) : ((r.ts instanceof Date) ? r.ts : new Date(r.ts));
+  // Last "closed yyyy-MM-dd HH:mm" stamp in the notes (a reopened + re-closed row has several)
+  var re = /closed (\d{4}-\d{2}-\d{2} \d{2}:\d{2})/g, m, last = null;
+  while ((m = re.exec(r.notes || '')) !== null) last = m[1];
+  var d = last ? new Date(last.replace(' ', 'T')) : ((r.ts instanceof Date) ? r.ts : new Date(r.ts));
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 function dashByCloseTime_(a, b) { return (dashCloseTime_(a) - dashCloseTime_(b)) || (a.row - b.row); }
 function dashIsEntered_(r) { return dashNorm_(r.action) === 'entered'; }
 function dashIsOpen_(r) { return dashIsEntered_(r) && !dashIsClosedOutcome_(r.outcome); }
 function dashIsClosed_(r) { return dashIsEntered_(r) && dashIsClosedOutcome_(r.outcome); }
+function dashIsLeg_(r) { return /P&L on row \d+/.test(r.notes || ''); }
 
 function dashComputeStats_(pos, statsStartDate) {
   var start = statsStartDate ? new Date(statsStartDate) : null;
   if (start && isNaN(start.getTime())) start = null;
-  var closed = pos.rows.filter(dashIsClosed_).filter(function (r) {
+  // Filter on the CLOSE date (notes stamp, else timestamp) - a trade opened before the
+  // stats start date but closed after it belongs in the window.
+  // Extra DCA legs of one position are stamped 'Closed' with $0 and a "P&L on row N" note -
+  // they are part of the main row's trade, not trades of their own
+  var closed = pos.rows.filter(dashIsClosed_).filter(function (r) { return !dashIsLeg_(r); }).filter(function (r) {
     if (!start) return true;
-    var d = (r.ts instanceof Date) ? r.ts : new Date(r.ts);
-    return isNaN(d.getTime()) ? true : d >= start;
+    var ct = dashCloseTime_(r);
+    return ct ? ct >= start.getTime() : true;
   }).sort(dashByCloseTime_);
-  var wins = 0, losses = 0, net = 0, gw = 0, gl = 0;
+  var wins = 0, losses = 0, flat = 0, net = 0, gw = 0, gl = 0;
   var cur = 0, curType = '', bestW = 0, worstL = 0;
   var byTicker = {};
   closed.forEach(function (r) {
@@ -4495,6 +4515,8 @@ function dashComputeStats_(pos, statsStartDate) {
     byTicker[r.ticker] = (byTicker[r.ticker] || 0) + r.profit;
     if (k === 'win') { wins++; gw += r.profit; }
     else if (k === 'loss') { losses++; gl += r.profit; }
+    else { flat++; }
+    // Breakeven ($0.00) closes count as trades but do not touch win rate or streaks
     if (k === 'flat') return;
     if (k === curType) cur++; else { curType = k; cur = 1; }
     if (k === 'win' && cur > bestW) bestW = cur;
@@ -4509,13 +4531,14 @@ function dashComputeStats_(pos, statsStartDate) {
   pos.rows.filter(dashIsOpen_).forEach(function (r) { openKeys[r.ticker.toUpperCase() + '_' + r.side] = true; });
   var decided = wins + losses;
   return {
-    totalTrades: decided,
+    totalTrades: decided + flat,
     wins: wins,
     losses: losses,
+    breakeven: flat,
     winRate: (decided ? (wins / decided * 100) : 0).toFixed(1) + '%',
     netPnl: dashFmtMoney_(net),
     totalProfit: dashFmtMoney_(gw),
-    totalLost: dashFmtMoney_(gl),
+    totalLost: dashFmtMoney_(Math.abs(gl)),
     bestWinStreak: bestW,
     worstLossStreak: worstL,
     currentStreak: cur ? (cur + (curType === 'win' ? 'W' : 'L')) : '0',
@@ -4584,7 +4607,7 @@ function applyStatsEngine_(json) {
 
     var wins = pos.rows.filter(dashIsClosed_).filter(function (r) { return dashClassify_(r) === 'win'; }).sort(dashByCloseTime_);
     obj.closedTrades = wins.reverse().slice(0, 60).map(function (r) {
-      return { ticker: r.ticker, profit: r.profit, date: dashFmtDate_(r.ts), signal: r.signal };
+      return { ticker: r.ticker, profit: r.profit, date: dashFmtDate_(dashCloseTime_(r) || r.ts), signal: r.signal };
     });
     obj._stats_engine = 'ok: ' + st._closedCount + ' closed rows, ' + Object.keys(openRows).length + ' open positions, sheet "' + pos.name + '"';
   } catch (err) {
@@ -4649,8 +4672,8 @@ function diagPositions_(p) {
     totalRows: pos.rows.length,
     stats: dashComputeStats_(pos, p.statsStartDate || ''),
     rows: rows.slice(-25).map(function (r) {
-      return { row: r.row, ts: dashFmtDate_(r.ts), ticker: r.ticker, signal: r.signal, side: r.side, price: r.price, action: r.action, outcome: r.outcome, profit: r.profit,
-               open: dashIsOpen_(r), counts: dashIsClosed_(r) ? dashClassify_(r) : '-' };
+      return { row: r.row, ts: dashFmtDate_(r.ts), closed: dashIsClosed_(r) ? dashFmtDate_(dashCloseTime_(r) || r.ts) : '', ticker: r.ticker, signal: r.signal, side: r.side, price: r.price, action: r.action, outcome: r.outcome, profit: r.profit,
+               open: dashIsOpen_(r), counts: dashIsClosed_(r) ? dashClassify_(r) : '-', notes: r.notes };
     })
   };
 }
