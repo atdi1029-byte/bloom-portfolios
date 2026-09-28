@@ -621,22 +621,22 @@
         .pie-legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.6rem; font-weight: 600; }
         .pie-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 
-        /* ============ GROWTH (return curve, 4-Year Cushion ink) ============ */
+        /* ============ GROWTH (return curve, sage green from the Cushion pie) ============ */
         .growth-card { padding: 0; overflow: hidden; position: relative; }
         .growth-stage { position: relative; height: 250px; }
         .growth-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
         .growth-crosshair {
             position: absolute; top: 0; bottom: 22px; width: 1px;
-            background: rgba(212,107,115,0.35);
+            background: rgba(92,140,106,0.35);
             pointer-events: none; display: none; z-index: 5;
         }
         .growth-tooltip {
             position: absolute; pointer-events: none; display: none; z-index: 10;
             transform: translateX(-50%);
             background: var(--bg-card, rgba(255,255,255,0.95));
-            border: 1px solid #f0c4c8;
+            border: 1px solid #b8d8c0;
             border-radius: 10px;
-            box-shadow: 0 4px 16px rgba(212,107,115,0.18);
+            box-shadow: 0 4px 16px rgba(92,140,106,0.18);
             padding: 6px 10px;
             font-size: 0.62rem; line-height: 1.55; font-weight: 600;
             color: var(--text); white-space: nowrap;
@@ -653,7 +653,7 @@
         .growth-value {
             font-family: 'Playfair Display', serif; font-weight: 900;
             font-size: 2.3rem; line-height: 1; letter-spacing: -0.01em;
-            color: #d46b73; font-variant-numeric: tabular-nums;
+            color: #5c8c6a; font-variant-numeric: tabular-nums;
         }
         .growth-value.up { color: #5c8c6a; }
         .growth-value.down { color: #d45a5a; }
@@ -672,23 +672,23 @@
         .growth-scope {
             font-family: 'Quicksand', sans-serif; font-size: 0.55rem; font-weight: 700;
             padding: 4px 9px; border-radius: 999px; cursor: pointer;
-            border: 1px solid #f0c4c8; background: rgba(255,240,242,0.85); color: #d46b73;
+            border: 1px solid #b8d8c0; background: rgba(240,248,242,0.9); color: #4a7058;
         }
-        .growth-scope.on { background: #e88b93; color: #fff; border-color: #e88b93; }
+        .growth-scope.on { background: #8aba96; color: #fff; border-color: #8aba96; }
         .growth-range-btns {
             position: relative; display: inline-flex; padding: 3px; border-radius: 999px;
-            background: rgba(255,240,242,0.85); border: 1px solid #f0c4c8;
+            background: rgba(240,248,242,0.9); border: 1px solid #b8d8c0;
         }
         .growth-range-ind {
             position: absolute; top: 3px; bottom: 3px; left: 3px; width: 0; border-radius: 999px;
-            background: linear-gradient(135deg, #f5b0b8, #e88b93);
-            box-shadow: 0 1px 6px rgba(232,139,147,0.45);
+            background: linear-gradient(135deg, #a8d4b4, #8aba96);
+            box-shadow: 0 1px 6px rgba(138,186,150,0.45);
             transition: transform 0.25s cubic-bezier(.2,.8,.2,1), width 0.25s; z-index: 0;
         }
         .growth-range-btn {
             position: relative; z-index: 1; border: 0; background: transparent; cursor: pointer;
             font-family: 'Quicksand', sans-serif; font-size: 0.58rem; font-weight: 700;
-            padding: 3px 9px; border-radius: 999px; color: #b07078; transition: color 0.2s;
+            padding: 3px 9px; border-radius: 999px; color: #5c7f66; transition: color 0.2s;
         }
         .growth-range-btn.active { color: #fff; }
         .growth-empty {
@@ -3001,10 +3001,10 @@ function renderPieChart() {
 
 // ====== GROWTH CHART ======
 // ====== GROWTH OVER TIME ======
-// Total return (value minus what you put in) over time, from the daily snapshots plus a
+// Total return (value minus cost basis) over time, from the daily snapshots plus a
 // live point for right now. A DCA moves value and cost together, so deposits don't show up
 // as growth: the curve only moves when the market does. Same idea as the crypto app's P&L
-// chart, drawn in 4-Year Cushion ink.
+// chart, drawn in the sage green from the Cushion's allocation pie (VTIP).
 let growthShowAll = false;   // false = current portfolio, true = all four combined
 let growthRange = 'All';
 let growthSeries = [];       // points currently drawn
@@ -3013,7 +3013,7 @@ let growthPad = { top: 0, right: 0, bottom: 0, left: 0 };
 let growthAnimFrame = null;
 let growthHasAnimated = false;
 const GROWTH_REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const GROWTH_INK = { line: '#d46b73', rgb: '232,139,147', lossRgb: '212,90,90', up: '#5c8c6a', down: '#d45a5a' };
+const GROWTH_INK = { line: '#5c8c6a', rgb: '138,186,150', deepRgb: '92,140,106', dipRgb: '140,140,150', up: '#5c8c6a', down: '#d45a5a' };
 
 function fmtSigned(v) {
     return (v < 0 ? '−$' : '+$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3168,7 +3168,7 @@ function renderGrowthChart(animate) {
         const stat = (label, val, color) => `<div><div class="growth-stat-label">${label}</div><div class="growth-stat-val"${color ? ` style="color:${color}"` : ''}>${val}</div></div>`;
         footEl.innerHTML =
             stat('Value', fmt(last.value)) +
-            stat('Put In', fmt(last.cost)) +
+            stat('Cost Basis', fmt(last.cost)) +
             stat('Return', (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', pct >= 0 ? GROWTH_INK.up : GROWTH_INK.down) +
             stat('Best', fmtSigned(peak.pnl), GROWTH_INK.up) +
             (dip > 0.005 ? stat('Deepest Dip', '−$' + dip.toFixed(2), GROWTH_INK.down) : '');
@@ -3247,7 +3247,7 @@ function drawGrowthChart(series, animate, totalPoints) {
             const gy = toY(val);
             if (gy < pad.top - 1 || gy > pad.top + plotH + 1) continue;
             const isZero = Math.abs(val) < step / 1000;
-            ctx.strokeStyle = isZero ? 'rgba(212,107,115,0.45)' : 'rgba(212,107,115,0.12)';
+            ctx.strokeStyle = 'rgba(' + GROWTH_INK.deepRgb + (isZero ? ',0.4)' : ',0.12)');
             ctx.lineWidth = 1;
             ctx.setLineDash(isZero ? [4, 4] : []);
             ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + plotW, gy); ctx.stroke();
@@ -3263,7 +3263,7 @@ function drawGrowthChart(series, animate, totalPoints) {
         ctx.save();
         ctx.beginPath(); ctx.rect(0, 0, revealX + 2, H); ctx.clip();
 
-        // Rose wash under the curve, down to $0
+        // Sage wash under the curve, down to $0
         const zeroY = Math.min(Math.max(toY(0), pad.top), pad.top + plotH);
         const wash = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
         wash.addColorStop(0, 'rgba(' + GROWTH_INK.rgb + ',0.30)');
@@ -3280,7 +3280,7 @@ function drawGrowthChart(series, animate, totalPoints) {
         for (let i = 0; i < series.length; i++) ctx.lineTo(xs[i], toY(hwm[i]));
         for (let i = series.length - 1; i >= 0; i--) ctx.lineTo(xs[i], ys[i]);
         ctx.closePath();
-        ctx.fillStyle = 'rgba(' + GROWTH_INK.lossRgb + ',0.13)'; ctx.fill();
+        ctx.fillStyle = 'rgba(' + GROWTH_INK.dipRgb + ',0.14)'; ctx.fill();
 
         // Soft wide stroke, then the crisp line
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -3297,13 +3297,13 @@ function drawGrowthChart(series, animate, totalPoints) {
             if (inDip) {
                 const px = xs[peakIdx], py = ys[peakIdx];
                 ctx.setLineDash([3, 5]);
-                ctx.strokeStyle = 'rgba(' + GROWTH_INK.lossRgb + ',0.7)'; ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(' + GROWTH_INK.deepRgb + ',0.7)'; ctx.lineWidth = 1;
                 ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(pad.left + plotW, py); ctx.stroke();
                 ctx.setLineDash([]);
                 ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2);
-                ctx.fillStyle = GROWTH_INK.down; ctx.fill();
+                ctx.fillStyle = GROWTH_INK.line; ctx.fill();
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.25; ctx.stroke();
-                ctx.fillStyle = GROWTH_INK.down;
+                ctx.fillStyle = GROWTH_INK.line;
                 ctx.font = '700 9px Quicksand';
                 ctx.textAlign = 'right';
                 ctx.fillText('best ' + fmtSigned(series[peakIdx].pnl), pad.left + plotW - 8, py - 6);
@@ -3345,7 +3345,7 @@ function drawGrowthChart(series, animate, totalPoints) {
     }
 }
 
-// Tooltip: nearest day by position — date, return, value, what was put in, change from the day before
+// Tooltip: nearest day by position — date, return, value, cost basis, change from the day before
 (function setupGrowthTooltip() {
     const stage = document.getElementById('growthStage');
     if (!stage) return;
@@ -3365,7 +3365,7 @@ function drawGrowthChart(series, animate, totalPoints) {
         tip.innerHTML =
             '<div class="growth-tip-date">' + (p.live ? 'Now' : growthDateLabel(p, true)) + '</div>' +
             '<div style="color:' + color + ';font-weight:700;font-size:0.72rem">' + fmtSigned(p.pnl) + '</div>' +
-            '<div>Value ' + fmt(p.value) + ' · Put in ' + fmt(p.cost) + '</div>' +
+            '<div>Value ' + fmt(p.value) + ' · Cost ' + fmt(p.cost) + '</div>' +
             (delta !== null ? '<div style="color:' + (delta >= 0 ? GROWTH_INK.up : GROWTH_INK.down) + '">' + fmtSigned(delta) + ' since ' + growthDateLabel(prev) + '</div>' : '');
         tip.style.display = 'block';
         const tx = growthXs[idx], ty = growthYs[idx];
