@@ -470,6 +470,12 @@ function doGet_orig(e) {
     return serveDcaPricesJSON_(e.parameter.extra || '');
   }
 
+  if (action === 'refresh_dca_tech') {
+    refreshDcaTechnicals();
+    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   if (action === 'setup_dca') {
     var n = setupDcaSheet();
     return ContentService.createTextOutput(JSON.stringify({ ok: true, tickers: n }))
