@@ -70,9 +70,14 @@ def build(cloud, positions, prices, sold):
             print('  (skip sell %s: Bloom has no shares)' % t); continue
         h = before[pk][t]
         amount = round(h['shares'] * prices[t], 2)
-        sells.append({'id': 'sell_%d' % (now - 3000 + i * 100), 'date': iso(now - 3000 + i * 100), 'portfolio': pk,
-                      'totalAmount': amount, 'type': 'sell', 'ticker': t, 'shares': h['shares'], 'price': prices[t],
-                      'profit': round(amount - h.get('costBasis', 0), 2)})
+        sell = {'id': 'sell_%d' % (now - 3000 + i * 100), 'date': iso(now - 3000 + i * 100), 'portfolio': pk,
+                'totalAmount': amount, 'type': 'sell', 'ticker': t, 'shares': h['shares'], 'price': prices[t],
+                'profit': round(amount - h.get('costBasis', 0), 2)}
+        if pk == 'stocks':   # Growth prices at the sale, for the Flywheel optimizer's shadow
+            bench = {g: prices[g] for g in order['growth'] if prices.get(g)}
+            if bench:
+                sell['bench'] = bench
+        sells.append(sell)
     d['history'] += sells
 
     # Where each ticker lives
