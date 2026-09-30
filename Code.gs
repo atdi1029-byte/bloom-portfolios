@@ -2744,7 +2744,8 @@ var DCA_TICKERS = [
   'WELL', 'DLR', 'DHR',
   'CPAY', 'GLW', 'APH', 'KEYS', 'JBL', 'ARW', 'INCY',
   'MCHP', 'NXPI', 'SNPS',
-  'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY'
+  'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY',
+  'TDY', 'TRMB', 'WST', 'TECH', 'ACGL'
 ];
 
 // ---------------------------------------------------------------
