@@ -630,6 +630,7 @@
         /* ============ GROWTH (return curve, sage green from the Cushion pie) ============ */
         .growth-card { padding: 0; overflow: hidden; position: relative; }
         .growth-stage { position: relative; height: 250px; }
+        .growth-stage.with-vs { height: 285px; }
         .growth-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
         .growth-crosshair {
             position: absolute; top: 0; bottom: 22px; width: 1px;
@@ -671,6 +672,13 @@
         .growth-pill.up { background: rgba(92,140,106,0.14); color: #4a7058; }
         .growth-pill.down { background: rgba(212,90,90,0.12); color: #c04848; }
         .growth-note.at-high { color: #5c8c6a; }
+        .growth-vs {
+            margin-top: 6px; font-size: 0.62rem; font-weight: 600; color: var(--text-dim);
+            display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap;
+        }
+        .growth-vs:empty { display: none; }
+        .growth-vs-key { display: inline-block; width: 16px; border-top: 2px dashed #a988d0; }
+        .growth-vs b { color: #c4a6e6; font-weight: 700; }
         .growth-controls {
             position: absolute; top: 12px; right: 12px; z-index: 6;
             display: flex; align-items: center; gap: 6px;
@@ -716,6 +724,7 @@
         }
         @media (max-width: 768px) {
             .growth-stage { height: 290px; }
+            .growth-stage.with-vs { height: 330px; }
             .growth-foot { display: grid; grid-template-columns: repeat(3, 1fr); }
             .growth-value { font-size: 1.8rem; }
             .growth-head { max-width: calc(100% - 28px); }
@@ -1102,6 +1111,7 @@
                         <span class="growth-pill" id="growthPill"></span>
                         <span class="growth-note" id="growthNote"></span>
                     </div>
+                    <div class="growth-vs" id="growthVs"></div>
                 </div>
                 <div class="growth-empty" id="growthEmpty"></div>
             </div>
@@ -3288,7 +3298,9 @@ let growthPad = { top: 0, right: 0, bottom: 0, left: 0 };
 let growthAnimFrame = null;
 let growthHasAnimated = false;
 const GROWTH_REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const GROWTH_INK = { line: '#5c8c6a', rgb: '138,186,150', deepRgb: '92,140,106', dipRgb: '140,140,150', up: '#5c8c6a', down: '#d45a5a' };
+const GROWTH_INK = { line: '#5c8c6a', rgb: '138,186,150', deepRgb: '92,140,106', dipRgb: '140,140,150', up: '#5c8c6a', down: '#d45a5a',
+                     spx: '#a988d0', spxText: '#c4a6e6' };   // S&P 500 line: VOO's purple from the Cushion pie, lightened for the Flywheel's dark theme
+let growthShadow = null;     // S&P 500 return for each drawn point, when the Flywheel is compared
 
 function fmtSigned(v) {
     return (v < 0 ? '−$' : '+$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -3397,10 +3409,97 @@ function growthWindow(pts, range) {
     return { points, baseline };
 }
 
+// ====== FLYWHEEL VS S&P 500 ======
+// The Flywheel's return next to the same money in the S&P 500 (VOO) over the same days.
+// Daily closes come from the Apps Script (Yahoo, ?action=price_history) and are kept in
+// this browser for 6 hours; it's public market data, so it isn't synced.
+const SPX_TICKER = 'VOO';
+const SK_SPX_HIST = 'bloom_spx_hist_v1';
+let spxHist = null;          // { at, dates: ['YYYY-MM-DD', ...], closes: [...] }
+let _spxFetchAt = 0, _spxFailed = false;
+
+function loadSpxHistory() {
+    if (!spxHist) { try { spxHist = JSON.parse(localStorage.getItem(SK_SPX_HIST) || 'null'); } catch (e) {} }
+    const fresh = spxHist && Date.now() - spxHist.at < 6 * 3600000;
+    if (fresh || Date.now() - _spxFetchAt < 10 * 60000) return;   // one try per 10 minutes
+    _spxFetchAt = Date.now();
+    jsonpFetch(API_BASE + '?action=price_history&ticker=' + SPX_TICKER + '&range=2y', (err, resp) => {
+        _spxFailed = !!(err || !resp || !resp.dates || !resp.dates.length);
+        if (_spxFailed) { if (currentPortfolio === 'stocks' && !spxHist) renderGrowthChart(); return; }
+        spxHist = { at: Date.now(), dates: resp.dates, closes: resp.closes };
+        try { localStorage.setItem(SK_SPX_HIST, JSON.stringify(spxHist)); } catch (e) {}
+        if (currentPortfolio === 'stocks') renderGrowthChart();
+    });
+}
+// The close on that date, or the last one before it (weekends, holidays)
+function spxCloseOn(date) {
+    const d = spxHist.dates;
+    let lo = 0, hi = d.length - 1, at = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (d[mid] <= date) { at = mid; lo = mid + 1; } else hi = mid - 1; }
+    return at >= 0 ? spxHist.closes[at] : 0;
+}
+
+// The same money in the S&P 500 over the range: it starts level with the Flywheel, every rise
+// in cost basis buys that much S&P, and a sale takes the same share of the S&P side's cost
+// as it took of the Flywheel's. Some steps are bookkeeping, not the market, so the gap between
+// the two lines carries straight across them: readings around a Robinhood sync, a cost jump of
+// more than half (Aug 4: the switch away from the out-of-date copy), and a step where the
+// Flywheel beat or trailed the S&P by more than 10% (late July, when cost rose with no value
+// behind it). Also the percent growth of each over the same days with deposits taken out.
+const SPX_JUNK_STEP = 0.10;
+function buildSpxShadow(points, baseline) {
+    const all = baseline ? [baseline, ...points] : points;
+    if (!spxHist || all.length < 2) return null;
+    const px = p => (p.live && getPrice(SPX_TICKER) > 0) ? getPrice(SPX_TICKER) : spxCloseOn(p.date);
+    const syncDays = (loadData().history || []).filter(_isReconcile).map(h => (h.date || '').slice(0, 10));
+    let S = all[0].value, shadowPnl = all[0].pnl, fly = 1;
+    const pnl = [];
+    for (let i = 1; i < all.length; i++) {
+        const a = all[i - 1], b = all[i], pa = px(a), pb = px(b);
+        if (!(pa > 0 && pb > 0 && a.value > 0 && a.cost > 0)) return null;
+        const dC = b.cost - a.cost;
+        const flow = dC >= 0 ? dC : dC * a.value / a.cost;   // a sale's proceeds, at the average gain
+        const r = (b.value - flow) / a.value;
+        if (syncDays.some(d => a.date <= d && d <= b.date) || Math.abs(dC) > a.cost * 0.5
+            || Math.abs(r / (pb / pa) - 1) > SPX_JUNK_STEP) {
+            shadowPnl += b.pnl - a.pnl;
+            S = b.cost + shadowPnl;
+            fly *= pb / pa;
+        } else {
+            S *= pb / pa;
+            S = dC >= 0 ? S + dC : S * Math.max(0, 1 + dC / a.cost);
+            shadowPnl = S - b.cost;
+            fly *= r;
+        }
+        pnl.push(shadowPnl);
+    }
+    return { pnl: baseline ? pnl : [all[0].pnl, ...pnl], gap: all[all.length - 1].pnl - shadowPnl,
+             fly: fly - 1, spx: px(all[all.length - 1]) / px(all[0]) - 1 };
+}
+
+function renderSpxLine(points, baseline) {
+    const el = document.getElementById('growthVs');
+    growthShadow = null;
+    document.getElementById('growthStage').classList.toggle('with-vs', currentPortfolio === 'stocks');
+    if (currentPortfolio !== 'stocks') { el.innerHTML = ''; return; }
+    loadSpxHistory();
+    if (growthShowAll) { el.innerHTML = '<span class="growth-vs-key"></span>Tap This Portfolio to see the Flywheel against the S&amp;P 500'; return; }
+    if (!spxHist) { el.innerHTML = '<span class="growth-vs-key"></span>' + (_spxFailed ? 'S&amp;P 500 prices didn\'t load' : 'Loading S&amp;P 500 prices…'); return; }
+    const vs = buildSpxShadow(points, baseline);
+    if (!vs) { el.innerHTML = ''; return; }
+    growthShadow = vs.pnl;
+    const sgn = x => (x >= 0 ? '+' : '−') + Math.abs(x * 100).toFixed(1) + '%';
+    const ahead = vs.gap >= 0;
+    el.innerHTML = '<span class="growth-vs-key"></span><span><b>S&amp;P 500 ' + sgn(vs.spx) + '</b> · Flywheel ' + sgn(vs.fly) + '</span>' +
+        '<span class="growth-pill ' + (ahead ? 'up' : 'down') + '">' + (ahead ? '▲ $' : '▼ $') + Math.abs(vs.gap).toFixed(2) +
+        (ahead ? ' ahead of' : ' behind') + ' the S&amp;P</span>';
+}
+
 function renderGrowthChart(animate) {
     const keys = growthShowAll ? Object.keys(PORTFOLIOS) : [currentPortfolio];
     const all = buildGrowthSeries(keys);
     const { points, baseline } = growthWindow(all, growthRange);
+    renderSpxLine(points, baseline);
     const valueEl = document.getElementById('growthValue');
     const pillEl = document.getElementById('growthPill');
     const noteEl = document.getElementById('growthNote');
@@ -3487,8 +3586,9 @@ function drawGrowthChart(series, animate, totalPoints) {
     const plotW = W - pad.left - pad.right;
     const plotH = H - pad.top - pad.bottom;
 
-    // Y scale on "nice" steps (1-2-2.5-5), always including $0
-    const vals = series.map(p => p.pnl);
+    // Y scale on "nice" steps (1-2-2.5-5), always including $0 (and the S&P line, if shown)
+    const shadow = growthShadow && growthShadow.length === series.length ? growthShadow : null;
+    const vals = series.map(p => p.pnl).concat(shadow || []);
     const rawMin = Math.min(...vals, 0), rawMax = Math.max(...vals, 0);
     const roughStep = ((rawMax - rawMin) || 1) / 4;
     const mag = Math.pow(10, Math.floor(Math.log10(roughStep)));
@@ -3557,6 +3657,15 @@ function drawGrowthChart(series, animate, totalPoints) {
         ctx.closePath();
         ctx.fillStyle = 'rgba(' + GROWTH_INK.dipRgb + ',0.14)'; ctx.fill();
 
+        // The same money in the S&P 500: dashed, under the Flywheel's line
+        if (shadow) {
+            ctx.beginPath();
+            shadow.forEach((v, i) => i === 0 ? ctx.moveTo(xs[i], toY(v)) : ctx.lineTo(xs[i], toY(v)));
+            ctx.setLineDash([5, 4]);
+            ctx.strokeStyle = GROWTH_INK.spx; ctx.lineWidth = 1.75; ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
         // Soft wide stroke, then the crisp line
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
         ctx.beginPath();
@@ -3582,6 +3691,11 @@ function drawGrowthChart(series, animate, totalPoints) {
                 ctx.font = '700 9px Quicksand';
                 ctx.textAlign = 'right';
                 ctx.fillText('best ' + fmtSigned(series[peakIdx].pnl), pad.left + plotW - 8, py - 6);
+            }
+            if (shadow) {
+                ctx.beginPath(); ctx.arc(xs[series.length - 1], toY(shadow[shadow.length - 1]), 3, 0, Math.PI * 2);
+                ctx.fillStyle = GROWTH_INK.spx; ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.25; ctx.stroke();
             }
             // Now
             const ex = xs[series.length - 1], ey = ys[series.length - 1];
@@ -3620,7 +3734,7 @@ function drawGrowthChart(series, animate, totalPoints) {
     }
 }
 
-// Tooltip: nearest day by position — date, return, value, cost basis, change from the day before
+// Tooltip: nearest day by position — date, return, value, cost basis, the S&P line, change from the day before
 (function setupGrowthTooltip() {
     const stage = document.getElementById('growthStage');
     if (!stage) return;
@@ -3641,6 +3755,7 @@ function drawGrowthChart(series, animate, totalPoints) {
             '<div class="growth-tip-date">' + (p.live ? 'Now' : growthDateLabel(p, true)) + '</div>' +
             '<div style="color:' + color + ';font-weight:700;font-size:0.72rem">' + fmtSigned(p.pnl) + '</div>' +
             '<div>Value ' + fmt(p.value) + ' · Cost ' + fmt(p.cost) + '</div>' +
+            (growthShadow && growthShadow.length === s.length ? '<div style="color:' + GROWTH_INK.spxText + '">S&amp;P 500, same $: ' + fmtSigned(growthShadow[idx]) + '</div>' : '') +
             (delta !== null ? '<div style="color:' + (delta >= 0 ? GROWTH_INK.up : GROWTH_INK.down) + '">' + fmtSigned(delta) + ' since ' + growthDateLabel(prev) + '</div>' : '');
         tip.style.display = 'block';
         const tx = growthXs[idx], ty = growthYs[idx];

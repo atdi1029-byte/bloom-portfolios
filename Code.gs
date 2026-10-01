@@ -538,6 +538,10 @@ function doGet_orig(e) {
     return serveQuoteJSON_(e.parameter.ticker || '', callback);
   }
 
+  if (action === 'price_history') {
+    return servePriceHistoryJSON_(e.parameter.ticker || '', e.parameter.range || '', callback);
+  }
+
   // --- Tide DSS Cycle Allocator ---
   if (action === 'tide_data') {
     return serveTideDataJSON_(callback);
@@ -3740,6 +3744,57 @@ function serveQuoteJSON_(ticker, callback) {
     return jsonpWrap_(JSON.stringify({
       status: 'ok', ticker: ticker, price: price
     }), callback);
+  } catch (err) {
+    return jsonpWrap_(JSON.stringify({
+      status: 'error', ticker: ticker, message: err.message
+    }), callback);
+  }
+}
+
+// ---------------------------------------------------------------
+// servePriceHistoryJSON_ — Daily closes for one ticker via Yahoo Finance.
+// Bloom's growth chart draws the Flywheel against the S&P 500 (VOO) with these.
+// Cached 6 hours, so opening the app doesn't hit Yahoo every time.
+// ---------------------------------------------------------------
+function servePriceHistoryJSON_(ticker, range, callback) {
+  ticker = String(ticker).toUpperCase().trim();
+  range = /^(1mo|3mo|6mo|1y|2y|5y)$/.test(range) ? range : '2y';
+  if (!ticker) {
+    return jsonpWrap_(JSON.stringify({ status: 'error', message: 'no ticker' }), callback);
+  }
+  var cache = CacheService.getScriptCache();
+  var key = 'price_history_' + ticker + '_' + range;
+  var hit = cache.get(key);
+  if (hit) return jsonpWrap_(hit, callback);
+
+  try {
+    var url = 'https://query1.finance.yahoo.com/v8/finance/chart/' +
+      encodeURIComponent(ticker) + '?interval=1d&range=' + range;
+    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    var json = JSON.parse(resp.getContentText());
+    var r = json.chart && json.chart.result && json.chart.result[0];
+    var ts = (r && r.timestamp) || [];
+    var q = (r && r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+    var closes = q.close || [];
+    var tz = (r && r.meta && r.meta.exchangeTimezoneName) || 'America/New_York';
+    var dates = [], out = [];
+    for (var i = 0; i < ts.length; i++) {
+      if (!(closes[i] > 0)) continue;
+      var d = Utilities.formatDate(new Date(ts[i] * 1000), tz, 'yyyy-MM-dd');
+      var c = Math.round(closes[i] * 100) / 100;
+      // Yahoo sometimes repeats today's bar; keep the later one
+      if (dates.length && dates[dates.length - 1] === d) { out[out.length - 1] = c; continue; }
+      dates.push(d);
+      out.push(c);
+    }
+    if (!dates.length) {
+      return jsonpWrap_(JSON.stringify({
+        status: 'error', ticker: ticker, message: 'no data from Yahoo (HTTP ' + resp.getResponseCode() + ')'
+      }), callback);
+    }
+    var body = JSON.stringify({ status: 'ok', ticker: ticker, dates: dates, closes: out });
+    try { cache.put(key, body, 21600); } catch (err) {} // 2 years is ~12 KB, under the 100 KB limit
+    return jsonpWrap_(body, callback);
   } catch (err) {
     return jsonpWrap_(JSON.stringify({
       status: 'error', ticker: ticker, message: err.message
