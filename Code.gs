@@ -4308,7 +4308,7 @@ function serveTideUniverseJSON_(callback) {
 // These wrap doGet_orig / doPost_orig above.
 // ============================================================================
 
-var DASHBOARD_ADDITIONS_VERSION = 'v2026-09-24b-additions';
+var DASHBOARD_ADDITIONS_VERSION = 'v2026-09-30-additions';
 
 var DASH_STATS_ENGINE = true;             // false = leave the original script's numbers untouched
 var DASH_POSITIONS_SHEET_ = 'Positions';  // tab name; found by its headers (Ticker + Outcome) if renamed
@@ -4699,6 +4699,9 @@ function closePositionRows_(p) {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(5000); } catch (e) { return { status: 'error', message: 'sheet is busy, try again' }; }
   try {
+    // Old rows carry a dropdown rule (TP Hit / Stopped Out / Open / 0x0, reject anything else) from
+    // the original setup and close path. It made "Closed" throw, so the close never saved (XAUUSD, Sep 30).
+    open.forEach(function (r) { sh.getRange(r.row, c.outcome + 1).clearDataValidations(); });
     open.forEach(function (r) {
       var isMain = r.row === main.row;
       sh.getRange(r.row, c.outcome + 1).setValue(isMain ? outcome : DASH_LEG_OUTCOME_);
@@ -4708,6 +4711,9 @@ function closePositionRows_(p) {
       var note = (r.notes ? r.notes + ' | ' : '') + (isMain ? 'closed ' + stamp + (open.length > 1 ? ' (' + open.length + ' legs)' : '') : 'leg of ' + ticker + ' close ' + stamp + ' - P&L on row ' + main.row);
       sh.getRange(r.row, c.notes + 1).setValue(note);
     });
+  } catch (err) {
+    // Answer in JSON so the app says "NOT saved" instead of hiding the card and letting it come back
+    return { status: 'error', message: 'close failed on row ' + main.row + ': ' + (err && err.message ? err.message : err) };
   } finally { lock.releaseLock(); }
   return { status: 'ok', ticker: ticker, side: side, outcome: outcome, profitLocked: pnl, row: main.row, rows: open.map(function (r) { return r.row; }), closedAt: stamp };
 }
@@ -4722,6 +4728,7 @@ function reopenPositionRows_(p) {
   var legs = pos.rows.filter(function (r) { return r.notes.indexOf('P&L on row ' + main.row) !== -1; });
   var sh = pos.sheet, c = pos.cols;
   [main].concat(legs).forEach(function (r) {
+    sh.getRange(r.row, c.outcome + 1).clearDataValidations();
     sh.getRange(r.row, c.outcome + 1).setValue('');
     sh.getRange(r.row, c.profit + 1).setValue('');
     sh.getRange(r.row, c.notes + 1).setValue((r.notes ? r.notes + ' | ' : '') + 'reopened');
@@ -4734,6 +4741,7 @@ function diagPositions_(p) {
   if (!pos) return { status: 'error', message: 'Positions tab not found (looked for "' + DASH_POSITIONS_SHEET_ + '" and any tab with Ticker + Outcome headers)' };
   var tk = String(p.ticker || '').trim().toUpperCase();
   var rows = tk ? pos.rows.filter(function (r) { return r.ticker.toUpperCase() === tk; }) : pos.rows.slice(-15);
+  if (String(p.open || '') === '1') rows = (tk ? rows : pos.rows).filter(dashIsOpen_); // ?open=1: only open rows
   return {
     status: 'ok',
     engine: DASH_STATS_ENGINE,
