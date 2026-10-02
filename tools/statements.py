@@ -120,7 +120,11 @@ def yahoo(tickers, start):
         off = r['meta'].get('gmtoffset', 0)
         day = lambda ts: time.strftime('%Y-%m-%d', time.gmtime(int(ts) + off))
         ev = r.get('events') or {}
-        out[t] = {'close': {day(ts): c for ts, c in zip(r['timestamp'], r['indicators']['quote'][0]['close']) if c},
+        closes = {day(ts): c for ts, c in zip(r['timestamp'], r['indicators']['quote'][0]['close']) if c}
+        # Yahoo sometimes leaves the latest day's bar empty for a while after the close
+        last, at, px = day(r['timestamp'][-1]), r['meta'].get('regularMarketTime'), r['meta'].get('regularMarketPrice')
+        if last not in closes and at and px and day(at) == last: closes[last] = px
+        out[t] = {'close': closes,
                   'div': {day(k): v['amount'] for k, v in (ev.get('dividends') or {}).items()},
                   'split': {day(k): v['numerator'] / v['denominator'] for k, v in (ev.get('splits') or {}).items()}}
         time.sleep(0.1)
