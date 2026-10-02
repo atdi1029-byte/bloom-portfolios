@@ -138,6 +138,12 @@ def build(cloud, positions, prices, sold):
     for pk, p in d['portfolios'].items():
         snap['portfolios'][pk] = {'value': round(sum(h.get('shares', 0) * prices.get(t, 0) for t, h in p['holdings'].items()), 2),
                                   'cost': round(sum(h.get('costBasis', 0) for h in p['holdings'].values()), 2)}
+    record = next((h['record'] for h in sorted(d['history'], key=lambda h: h.get('date', ''), reverse=True)
+                   if h.get('type') == 'reconcile' and h.get('record')), None)
+    if record and record.get('aside'):               # Flywheel tickers the record keeps apart from the picks
+        held = [d['portfolios']['stocks']['holdings'].get(t, {}) for t in record['aside']['tickers']]
+        snap['portfolios']['stocks']['aside'] = [round(sum(h.get('shares', 0) * prices.get(t, 0) for t, h in zip(record['aside']['tickers'], held)), 2),
+                                                 round(sum(h.get('costBasis', 0) for h in held), 2)]
     d['valueSnapshots'] = [s for s in d.get('valueSnapshots', []) if s['date'] != today] + [snap]
     d['lastModified'] = now
     d.setdefault('deletedIds', [])

@@ -16,8 +16,10 @@ Where the trades come from, best source first:
     of the gap if it has none), priced at that day's close. Estimated.
   * After the last match: the trades logged in Bloom.
 A ticker counts for the portfolio it sits in today (SCHD is split in Bloom's current
-Cushion:Growth ratio). Prices are Yahoo daily closes; dividends are left out of the gains on
-every side and reported separately (estimated from shares held on each ex-date).
+Cushion:Growth ratio). Inside the Flywheel, the ASIDE tickers (held there but never picked)
+are also kept as a line of their own, so the picks can be scored without them. Prices are
+Yahoo daily closes; dividends are left out of the gains on every side and reported separately
+(estimated from shares held on each ex-date).
 
 "The same money" = each day's net deposits put into VOO (or the Growth mix) at that day's
 close, and each day's net sale proceeds taken back out.
@@ -46,6 +48,12 @@ PERIOD = re.compile(r'(\d\d)/01/(\d{4}) to \d\d/\d\d/\d{4}')
 PORTFOLIOS = ('cushion', 'growth', 'stocks')
 NAMES = {'cushion': '4-Year Cushion', 'growth': 'Lifetime Growth', 'stocks': 'Flywheel'}
 BENCH = 'VOO'
+# In the Flywheel but never picked: gold bought as a hedge for the Cushion, moved over to be
+# sold rather than held long term (Alex, Oct 1 2026). The record keeps their money and worth
+# as a line of their own (p.aside), so the Flywheel's score and the optimizer measure the
+# picks alone. The app, the server's daily snapshot and the sync tool all take this list
+# from the record, so it only needs changing here (then re-run with --apply).
+ASIDE = {'name': 'Gold', 'tickers': ['GLD', 'GDX']}
 
 
 def to_text():
@@ -253,7 +261,12 @@ def build(cloud, a):
         return {'v': v, 'in': ins, 'spx': shadow['spx'], 'gro': shadow['gro'], 'div': div, 'shares': dict(sh), 'late': dict(late)}
 
     out = {pk: replay(lambda p, t, pk=pk: p == pk) for pk in PORTFOLIOS}
-    # Bloom's holdings now against the rebuilt ones; k ties the app's cost basis to money in
+    out['aside'] = replay(lambda p, t: p == 'stocks' and t in ASIDE['tickers'])
+    def tie(r, held):
+        """k ties the app's cost basis to money in; delta is Bloom's holdings against the rebuilt ones, in dollars"""
+        r['cost'] = sum(h.get('costBasis', 0) for h in held.values())
+        r['delta'] = sum(h['shares'] * close(t, through) for t, h in held.items()) - r['v'][-1]
+        r['k'] = r['cost'] - r['in'][-1] - r['delta']
     problems = []
     for pk in PORTFOLIOS:
         r = out[pk]
@@ -263,11 +276,8 @@ def build(cloud, a):
             x, y = mine.get(t, 0), hold_now[pk].get(t, {}).get('shares', 0)
             if abs(x - y) > 6e-3:      # Robinhood's positions list shows bigger holdings to 2 decimals
                 problems.append('%s %s: rebuilt %.4f, Bloom %.4f' % (pk, t, x, y))
-        v_app = sum(h['shares'] * close(t, through) for t, h in hold_now[pk].items())
-        cost = sum(h.get('costBasis', 0) for h in hold_now[pk].values())
-        r['delta'] = v_app - r['v'][-1]
-        r['k'] = cost - r['in'][-1] - r['delta']
-        r['cost'] = cost
+        tie(r, hold_now[pk])
+    tie(out['aside'], {t: h for t, h in hold_now['stocks'].items() if t in ASIDE['tickers']})
     print('Bloom holdings vs rebuilt: %s' % ('all match' if not problems else '; '.join(problems)))
     return {'days': days, 'through': through, 'exact': stmt_end, 'spx': spx, 'gro': gro, 'p': out,
             'replay': replay, 'events': ev, 'matches': [os.path.basename(f)[10:20] for f in pos_files], 'close': close}
@@ -280,8 +290,11 @@ def report(b, tickers):
           ', then the %s match and Bloom\'s log' % ' / '.join(b['matches']) if b['matches'] else ', then Bloom\'s log'))
     print('\n%-16s %10s %10s %9s %7s | %12s %9s | %12s %9s | %9s' %
           ('', 'money in', 'worth', 'gain', '', 'in S&P 500', 'vs S&P', 'in Growth', 'vs Growth', 'dividends'))
-    rows = [(NAMES[pk], b['p'][pk]) for pk in PORTFOLIOS] + [('Everything', b['replay'](lambda p, t: True))]
-    for name, r in rows:
+    aside = '%s (%s)' % (ASIDE['name'], ', '.join(ASIDE['tickers']))
+    rows = [(NAMES[pk], b['p'][pk]) for pk in PORTFOLIOS] + [('Everything', b['replay'](lambda p, t: True)), None,
+            ('Flywheel picks', b['replay'](lambda p, t: p == 'stocks' and t not in ASIDE['tickers'])), (aside, b['p']['aside'])]
+    for name, r in rows[:rows.index(None)] + [('', None)] + rows[rows.index(None) + 1:]:
+        if r is None: print('Inside the Flywheel:'); continue
         v, cf = r['v'][-1], r['in'][-1]
         print('%-16s %10.2f %10.2f %+9.2f %+6.1f%% | %12.2f %+9.2f | %12.2f %+9.2f | %9.2f' %
               (name, cf, v, v - cf, 100 * (v - cf) / cf if cf else 0, r['spx'][-1], v - r['spx'][-1], r['gro'][-1], v - r['gro'][-1], r['div']))
@@ -311,7 +324,7 @@ def main():
     report(b, a.tickers)
     r2 = lambda xs: [round(x, 2) for x in xs]
     now = int(time.time() * 1000)
-    record = {'at': rs.iso(now), 'through': b['through'], 'exact': b['exact'], 'days': b['days'], 'spx': b['spx'], 'gro': b['gro'],
+    record = {'at': rs.iso(now), 'through': b['through'], 'exact': b['exact'], 'days': b['days'], 'spx': b['spx'], 'gro': b['gro'], 'aside': ASIDE,
               'p': {pk: {'v': r2(r['v']), 'in': r2(r['in']), 'k': round(r['k'], 2), 'div': round(r['div'], 2)} for pk, r in b['p'].items()}}
     json.dump(record, open(os.path.join(DIR, 'record.json'), 'w'))
     if not a.apply:

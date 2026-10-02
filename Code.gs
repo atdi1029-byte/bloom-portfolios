@@ -5332,6 +5332,17 @@ function dailyDcaSnapshot() {
         });
         snap.portfolios[pk] = { value: Math.round(value * 100) / 100, cost: Math.round(cost * 100) / 100 };
       });
+      // Flywheel tickers the record keeps apart (held there, never picked): their own value
+      // and cost, so the app can keep scoring the picks without them
+      var aside = BLOOM_asideTickers(data);
+      if (aside.length && snap.portfolios.stocks) {
+        var held = (data.portfolios.stocks && data.portfolios.stocks.holdings) || {}, av = 0, ac = 0;
+        aside.forEach(function (t) {
+          av += (Number(held[t] && held[t].shares) || 0) * (prices[t] || 0);
+          ac += Number(held[t] && held[t].costBasis) || 0;
+        });
+        snap.portfolios.stocks.aside = [Math.round(av * 100) / 100, Math.round(ac * 100) / 100];
+      }
 
       // Replace any same-day entry (the post-close value is the better one), then cap.
       var snaps = (data.valueSnapshots || []).filter(function (s) { return s && s.date && s.date !== today; });
@@ -5374,6 +5385,15 @@ function BLOOM_indexPrices(prices) {
     nav += BLOOM_GROWTH_MIX[t][0] / 100 * p / BLOOM_GROWTH_MIX[t][1];
   }
   return [Math.round(spx * 100) / 100, Math.round(nav * 1e5) / 1e5];
+}
+
+/** The tickers the record (on the latest Robinhood match entry that has one) keeps apart inside the Flywheel. */
+function BLOOM_asideTickers(data) {
+  var h = (data && data.history) || [];
+  for (var i = h.length - 1; i >= 0; i--) {
+    if (h[i] && h[i].type === 'reconcile' && h[i].record) return (h[i].record.aside && h[i].record.aside.tickers) || [];
+  }
+  return [];
 }
 
 /** Tickers with shares > 0 across all portfolios (avoids 60+ quote calls for empty Flywheel slots). */

@@ -718,7 +718,10 @@
         .board td.up { color: #5c8c6a; }
         .board td.down { color: #d45a5a; }
         .board-key { display: inline-block; width: 16px; margin-right: 6px; vertical-align: middle; border-top: 2px solid #5c8c6a; }
-        .board-verdict { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 0.62rem; }
+        .board-verdict { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; font-size: 0.62rem; }
+        .board td[colspan] { text-align: left; white-space: normal; padding-left: 0; }
+        .board tr.also td:not(.up):not(.down) { color: var(--text-dim); }
+        .board tr.also.first td { border-top: 1px solid var(--border-light); padding-top: 7px; }
         .board-facts { margin-top: 8px; font-size: 0.6rem; font-weight: 600; color: var(--text-dim); line-height: 1.6; }
         .board-help { margin-top: 6px; font-size: 0.6rem; font-weight: 500; color: var(--text-dim); line-height: 1.6; }
         .board-help summary { cursor: pointer; font-weight: 700; }
@@ -1389,6 +1392,9 @@ let pendingDCA = null;
 // where k is the profit already banked when the record was built. So a gain counts profit
 // from shares already sold, not only what's still held. Without a record, money in is just
 // the cost basis. Prices only: dividends are left out on every side.
+// The record can also keep some Flywheel tickers apart (rec.aside, with their own line in
+// rec.p.aside): held on that page but never picked, like the gold bought as a hedge. The
+// Flywheel is then scored on its picks alone.
 const SPX_TICKER = 'VOO';
 // The Growth mix as one price: target weights, 1.00 at these Sep 28 2026 closes
 const GROWTH_NAV_BASE = { VTI: 375.84, SCHG: 35.95, VXUS: 85.75, AVUV: 119.55, SCHD: 33.01, VO: 79 };
@@ -1406,19 +1412,30 @@ function getRecord(data) {
     for (let i = h.length - 1; i >= 0; i--) if (_isReconcile(h[i]) && h[i].record) return h[i].record;
     return null;
 }
-// moneyIn(portfolio, its cost basis, at that moment)
+// What a series key reads: a portfolio, or one side of the Flywheel ('aside' for the tickers
+// the record keeps apart, 'picks' for the rest). null when the record has no such split.
+function _seriesSource(key, rec) {
+    if (key !== 'picks' && key !== 'aside') return { pk: key, has: () => true, k: rec && rec.p[key] ? rec.p[key].k : 0 };
+    if (!(rec && rec.aside && rec.p.aside && rec.p.stocks)) return null;
+    const set = new Set(rec.aside.tickers), aside = key === 'aside';
+    return { pk: 'stocks', side: key, has: t => set.has(t) === aside, k: aside ? rec.p.aside.k : rec.p.stocks.k - rec.p.aside.k };
+}
+const _asideLabel = rec => rec.aside.name + ' (' + rec.aside.tickers.join(', ') + ')';
+// moneyIn(series key, its cost basis, at that moment)
 function _moneyInFn(data, rec) {
-    if (!rec) return (k, cost) => cost;
-    const sold = {};
-    (data.history || []).forEach(h => {
-        if (h.type === 'sell' && (h.date || '') > rec.at) (sold[h.portfolio] = sold[h.portfolio] || []).push([Date.parse(h.date), h.profit || 0]);
-    });
-    return (k, cost, at) => cost - (rec.p[k] ? rec.p[k].k : 0) - (sold[k] || []).reduce((s, [ts, pf]) => s + (ts <= at ? pf : 0), 0);
+    if (!rec) return (key, cost) => cost;
+    const sells = (data.history || []).filter(h => h.type === 'sell' && (h.date || '') > rec.at)
+        .map(h => ({ pk: h.portfolio, t: h.ticker, at: Date.parse(h.date), pf: h.profit || 0 }));
+    return (key, cost, at) => {
+        const src = _seriesSource(key, rec);
+        return src ? cost - src.k - sells.reduce((s, x) => s + (x.pk === src.pk && src.has(x.t) && x.at <= at ? x.pf : 0), 0) : cost;
+    };
 }
 
 // ====== FLYWHEEL OPTIMIZER ======
-// How much new money should go to the Flywheel? It reads the record: the Flywheel against the
-// same money in the Growth mix, since the Flywheel's first dollar.
+// How much new money should go to the Flywheel? It reads the record: the Flywheel's picks
+// (what the record keeps apart, like the gold, is left out) against the same money in the
+// Growth mix, since the first pick.
 //   edge   = dollars ahead of Growth per dollar at work per year, with 2 extra years of
 //            "no edge" blended in so a lucky stretch can't run away with it
 //   swing  = how far the Flywheel wanders from Growth in a year
@@ -1449,9 +1466,10 @@ function _flyOptSig(fo) {
 }
 const _optDay = ts => new Date(ts).toISOString().slice(0, 10);
 
-// The Flywheel's daily points with the same money in Growth beside them, or null without a record
+// The daily points of the Flywheel's picks with the same money in Growth beside them, or null
+// without a record
 function _flywheelSeries() {
-    const pts = buildGrowthSeries(['stocks']);
+    const pts = buildGrowthSeries([_seriesSource('picks', getRecord()) ? 'picks' : 'stocks']);
     return pts.length >= 2 && pts[0].sx ? pts : null;
 }
 
@@ -1473,7 +1491,7 @@ function _flyOptStats(pts) {
         wx2 += a.value * x * x; atWork += a.value * dt; n++;
     }
     const last = pts[pts.length - 1];
-    return { f: last.value, g: G(last), ahead: last.value - G(last), atWork, worst,
+    return { f: last.value, g: G(last), ahead: last.value - G(last), cost: last.cost, atWork, worst,
              swing: n >= 30 && atWork > 0 ? Math.sqrt(wx2 / atWork) : null,
              from: pts[0].t, days: (last.t - pts[0].t) / 86400000 };
 }
@@ -1481,14 +1499,18 @@ function _flyOptStats(pts) {
 function _flyOptResult(data, pts) {
     const fo = data.flyOpt || {};
     const st = _flyOptStats(pts);
-    const worth = pk => Object.entries((data.portfolios[pk] || {}).holdings || {}).reduce((s, [t, h]) => s + (h.shares || 0) * getPrice(t), 0);
-    const fly = worth('stocks'), stocks = fly + worth('growth');
+    const rec = getRecord(data);
+    const apart = _seriesSource('aside', rec);
+    const worth = (pk, keep) => Object.entries((data.portfolios[pk] || {}).holdings || {}).reduce((s, [t, h]) => s + (!keep || keep(t) ? (h.shares || 0) * getPrice(t) : 0), 0);
+    const asideWorth = apart ? worth('stocks', apart.has) : 0;
+    const fly = worth('stocks') - asideWorth, stocks = fly + worth('growth');
     const total = Object.keys(PORTFOLIOS).reduce((s, pk) => s + worth(pk), 0);
     const floor = (fo.floor ?? OPT_DEFAULTS.floor) / 100, pain = (fo.pain ?? OPT_DEFAULTS.pain) / 100;
     const gap = Math.max(st.worst, OPT_ASSUMED_GAP);
     const painCap = pain / gap, cap = Math.min(painCap, OPT_CEILING), lo = Math.min(floor, cap);
     const clampBand = x => Math.min(cap, Math.max(lo, x));
     const r = { st, floor, pain, gap, cap, lo, priced: total > 0, share: total > 0 ? fly / total : 0, ofStocks: stocks > 0 ? fly / stocks : 0,
+                aside: apart && total > 0 ? { label: _asideLabel(rec), share: asideWorth / total } : null,
                 unlocked: st.days >= OPT_UNLOCK_DAYS, unlockAt: st.from + OPT_UNLOCK_DAYS * 86400000, target: lo };
     if (!r.unlocked) return r;
     r.edge = st.ahead / (st.atWork + OPT_PRIOR_YEARS * st.f);      // yearly, pulled toward 0
@@ -1590,7 +1612,8 @@ function renderFlyOpt() {
         html += `<div class="fly-opt-note">This works from the record built from your Robinhood statements, and that hasn't reached this device yet.</div>`;
     } else {
         const st = res.st;
-        const versus = `${fmt(st.f)} here against ${fmt(st.g)} if the same money had gone into Growth, ${fmt(Math.abs(st.ahead))} ${st.ahead < 0 ? 'behind' : 'ahead'}`;
+        const versus = `${fmt(st.f)} ${res.aside ? 'in picks ' : ''}here against ${fmt(st.g)} if the same money had gone into Growth: ` +
+            `${st.cost > 0 ? pct(Math.abs(st.ahead) / st.cost) : ''} ${st.ahead < 0 ? 'behind' : 'ahead'} (${fmt(Math.abs(st.ahead))})`;
         if (!res.unlocked) {
             html += `<div class="fly-opt-line"><strong>Send ${pct(res.target)} of new money to the Flywheel for now.</strong> That's your floor.</div>
                 <div class="fly-opt-bar"><div style="width:${Math.min(100, st.days / OPT_UNLOCK_DAYS * 100).toFixed(1)}%"></div></div>
@@ -1611,7 +1634,8 @@ function renderFlyOpt() {
                 <div class="fly-opt-stat"><div class="fly-opt-label">New money</div><div class="fly-opt-val up">${pct(res.target)}</div></div>
                 <div class="fly-opt-stat"><div class="fly-opt-label">Your max</div><div class="fly-opt-val">${pct(res.cap)}</div></div>
             </div>` +
-            (res.priced ? `<div class="fly-opt-line">The Flywheel is ${pct(res.share)} of everything you hold (${pct(res.ofStocks, 0)} of your stock money).${drift}</div>` : '');
+            (res.priced ? `<div class="fly-opt-line">${res.aside ? 'Your picks are' : 'The Flywheel is'} ${pct(res.share)} of everything you hold (${pct(res.ofStocks, 0)} of your stock money).${drift}` +
+                (res.aside ? ` ${res.aside.label} is another ${pct(res.aside.share)} on this page. It was never a pick, so it is left out of all of this.` : '') + '</div>' : '');
     }
     const floorV = fo.floor ?? OPT_DEFAULTS.floor, painV = fo.pain ?? OPT_DEFAULTS.pain;
     html += `<div class="fly-opt-settings">
@@ -2112,6 +2136,15 @@ function recordValueSnapshot() {
         snap.portfolios[pKey] = { value: Math.round(value * 100) / 100, cost: Math.round(cost * 100) / 100 };
     }
     if (!anyHoldings) return;
+    // The Flywheel tickers the record keeps apart: their own value and cost, so the picks
+    // can still be followed without them
+    const rec = getRecord(data);
+    if (rec && rec.aside) {
+        const held = ((data.portfolios.stocks || {}).holdings) || {};
+        let value = 0, cost = 0;
+        rec.aside.tickers.forEach(t => { if (held[t]) { value += held[t].shares * getPrice(t); cost += held[t].costBasis || 0; } });
+        snap.portfolios.stocks.aside = [Math.round(value * 100) / 100, Math.round(cost * 100) / 100];
+    }
     data.valueSnapshots.push(snap);
     // Keep max 365 days
     if (data.valueSnapshots.length > 365) data.valueSnapshots = data.valueSnapshots.slice(-365);
@@ -3207,6 +3240,7 @@ let growthVs = [];           // the comparison lines on the chart right now
 function fmtSigned(v) {
     return (v < 0 ? '−$' : '+$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function fmtSignedPct(x) { return (x < 0 ? '−' : '+') + Math.abs(x * 100).toFixed(1) + '%'; }
 function growthDateLabel(p, withYear) {
     const [y, m, d] = p.date.split('-').map(Number);
     // The live point carries the UTC date (as snapshots do); label it with today's date here
@@ -3233,26 +3267,37 @@ function moveGrowthRangeIndicator() {
     ind.style.transform = 'translateX(' + (active.offsetLeft - 3) + 'px)';
 }
 
-// Daily points for the chosen portfolios added together:
+// Daily points for the chosen series keys added together (portfolios, or a side of the
+// Flywheel, see _seriesSource):
 //   { date, t, value, cost (the money in), pnl, spx, gro (index prices), sx, live }
 // sx is the gain the same money would show in each index: every rise in money in buys that
 // much of the index that day, every fall takes it back out. From the record's first day both
-// sides start empty. Snapshots from before the record ends, and ones without index prices
-// (taken by an older copy of the app), are left out.
+// sides start empty. Snapshots from before the record ends are left out, and so are ones an
+// older copy of the app took without index prices (or without the Flywheel split, for a side).
 function buildGrowthSeries(keys) {
     const data = loadData();
     const rec = getRecord(data);
+    const srcs = keys.map(k => _seriesSource(k, rec) && Object.assign({ key: k }, _seriesSource(k, rec)));
+    if (srcs.some(x => !x)) return [];
     const moneyIn = _moneyInFn(data, rec);
     const today = new Date().toISOString().slice(0, 10); // snapshots use the UTC date too
     const tOf = date => { const [y, m, d] = date.split('-').map(Number); return new Date(y, m - 1, d, 16).getTime(); };
     let out = [];
-    const recKeys = rec ? keys.filter(k => rec.p[k]) : [];
-    if (recKeys.length) rec.days.forEach((date, i) => {
+    const recLines = !rec ? [] : srcs.map(x => x.side === 'aside' ? rec.p.aside
+        : x.side === 'picks' ? { v: rec.p.stocks.v.map((v, i) => v - rec.p.aside.v[i]), in: rec.p.stocks.in.map((v, i) => v - rec.p.aside.in[i]) }
+        : rec.p[x.pk]).filter(Boolean);
+    if (recLines.length) rec.days.forEach((date, i) => {
         let value = 0, cost = 0;
-        recKeys.forEach(k => { value += rec.p[k].v[i]; cost += rec.p[k].in[i]; });
-        if (value || cost) out.push({ date, t: tOf(date), value, cost, pnl: value - cost, spx: rec.spx[i], gro: rec.gro[i] });
+        recLines.forEach(r => { value += r.v[i]; cost += r.in[i]; });
+        if (Math.abs(value) > 0.005 || Math.abs(cost) > 0.005) out.push({ date, t: tOf(date), value, cost, pnl: value - cost, spx: rec.spx[i], gro: rec.gro[i] });
     });
     const fromRecord = out.length > 0;
+    // [value, cost basis] of one source in a snapshot; null when the snapshot can't say
+    const reading = (x, p) => {
+        if (!x.side) return [(p && p.value) || 0, (p && p.cost) || 0];
+        if (!p || !p.aside) return null;
+        return x.side === 'aside' ? p.aside : [(p.value || 0) - p.aside[0], (p.cost || 0) - p.aside[1]];
+    };
     (data.valueSnapshots || []).forEach(snap => {
         if (fromRecord && snap.date <= rec.through) return;
         const x = snap.x || [];
@@ -3260,31 +3305,30 @@ function buildGrowthSeries(keys) {
         // Without a time, the snapshot was the day's first look: before any sale that day
         const at = snap.ts || Date.parse(snap.date + 'T00:00:00Z');
         let value = 0, cost = 0, ok = true;
-        keys.forEach(k => {
-            const p = snap.portfolios && snap.portfolios[k];
-            if (!p || !(p.value > 0 || p.cost > 0)) return;
-            if (!(p.value > 0 && p.cost > 0)) { ok = false; return; }   // a broken reading
-            value += p.value; cost += moneyIn(k, p.cost, at);
+        srcs.forEach(src => {
+            const r = reading(src, snap.portfolios && snap.portfolios[src.pk]);
+            if (!r || (r[0] > 0) !== (r[1] > 0)) { ok = false; return; }   // no reading, or a broken one
+            value += r[0]; cost += moneyIn(src.key, r[1], at);
         });
-        if (ok && value > 0) out.push({ date: snap.date, t: tOf(snap.date), value, cost, pnl: value - cost, spx: x[0] || 0, gro: x[1] || 0 });
+        if (ok && (value > 0 || Math.abs(cost) > 0.005)) out.push({ date: snap.date, t: tOf(snap.date), value, cost, pnl: value - cost, spx: x[0] || 0, gro: x[1] || 0 });
     });
     // Now, from current holdings, once every held ticker has a price
     let value = 0, cost = 0, basis = 0, priced = true;
-    keys.forEach(k => {
-        const pd = (data.portfolios && data.portfolios[k]) || { holdings: {} };
+    srcs.forEach(src => {
+        const pd = (data.portfolios && data.portfolios[src.pk]) || { holdings: {} };
         let c = 0;
-        PORTFOLIOS[k].order.forEach(t => {
+        PORTFOLIOS[src.pk].order.forEach(t => {
             const h = pd.holdings[t];
-            if (!h || !(h.shares > 0)) return;
+            if (!h || !(h.shares > 0) || !src.has(t)) return;
             if (!(getPrice(t) > 0)) priced = false;
             value += h.shares * getPrice(t);
             c += h.costBasis || 0;
         });
         basis += c;
-        cost += moneyIn(k, c, Date.now());
+        cost += moneyIn(src.key, c, Date.now());
     });
     const spxNow = getPrice(SPX_TICKER), groNow = growthNav(getPrice);
-    if (priced && value > 0 && (!fromRecord || (spxNow > 0 && groNow > 0))) {
+    if (priced && (value > 0 || Math.abs(cost) > 0.005) && (!fromRecord || (spxNow > 0 && groNow > 0))) {
         out = out.filter(p => p.date !== today);
         out.push({ date: today, t: Date.now(), value, cost, basis, pnl: value - cost, spx: spxNow, gro: groNow, live: true });
     }
@@ -3312,10 +3356,13 @@ function growthWindow(pts, range) {
 }
 
 function renderGrowthChart(animate) {
-    const keys = growthShowAll ? Object.keys(PORTFOLIOS) : [currentPortfolio];
+    // The Flywheel page scores its picks; what the record keeps apart gets rows of its own below
+    const rec = getRecord();
+    const split = !growthShowAll && currentPortfolio === 'stocks' && !!_seriesSource('picks', rec);
+    const keys = growthShowAll ? Object.keys(PORTFOLIOS) : split ? ['picks'] : [currentPortfolio];
     const all = buildGrowthSeries(keys);
     const { points, baseline } = growthWindow(all, growthRange);
-    const name = growthShowAll ? 'All Portfolios' : PORTFOLIOS[currentPortfolio].name;
+    const name = growthShowAll ? 'All Portfolios' : split ? 'Flywheel picks' : PORTFOLIOS[currentPortfolio].name;
     growthVs = !growthShowAll && all.length && all[0].sx ? (VS_PAGES[currentPortfolio] || []) : [];
     const valueEl = document.getElementById('growthValue');
     const pillEl = document.getElementById('growthPill');
@@ -3335,7 +3382,9 @@ function renderGrowthChart(animate) {
             const start = baseline ? baseline.pnl : points[0].fromStart ? 0 : points[0].pnl;
             const change = points[points.length - 1].pnl - start;
             const label = { '1M': 'over 1 month', '3M': 'over 3 months', '6M': 'over 6 months', '1Y': 'over 1 year' }[growthRange];
-            pillEl.textContent = (change >= 0 ? '▲ ' : '▼ ') + fmtSigned(change) + ' ' + (baseline && label ? label : 'since ' + growthDateLabel(points[0]));
+            // Since the start, the change is the whole gain: say what that is on the money in
+            const onIt = !baseline && points[0].fromStart && last.cost > 0 ? ' (' + fmtSignedPct(last.pnl / last.cost) + ')' : '';
+            pillEl.textContent = (change >= 0 ? '▲ ' : '▼ ') + fmtSigned(change) + onIt + ' ' + (baseline && label ? label : 'since ' + growthDateLabel(points[0]));
             pillEl.className = 'growth-pill ' + (change >= 0 ? 'up' : 'down');
             pillEl.style.display = '';
         } else {
@@ -3349,16 +3398,19 @@ function renderGrowthChart(animate) {
         noteEl.textContent = atHigh ? 'At its best so far' : 'Best was ' + fmtSigned(peak.pnl) + ' on ' + growthDateLabel(peak) + ', now $' + off.toFixed(2) + ' below';
         noteEl.className = 'growth-note' + (atHigh ? ' at-high' : '');
     }
-    renderGrowthBoard(keys, all, points, baseline, name);
+    renderGrowthBoard(keys, all, points, baseline, name, split ? rec : null);
     const first = !growthHasAnimated && points.length >= 2;
     if (first) growthHasAnimated = true;
     drawGrowthChart(points, !!animate || first, all.length);
     moveGrowthRangeIndicator();
 }
 
-// The scoreboard under the chart: this portfolio next to the same money elsewhere, always
-// since the start (the range buttons add a column for the change inside the range)
-function renderGrowthBoard(keys, all, points, baseline, name) {
+// The scoreboard under the chart: this series next to the same money elsewhere, always since
+// the start (the range buttons add a column for the change inside the range). Gain % is the
+// gain on the money in; the same-money rows share that money in, so the percentages compare
+// directly. On the Flywheel page (splitRec) the series is the picks, and what the record
+// keeps apart and the whole Flywheel follow as rows of their own.
+function renderGrowthBoard(keys, all, points, baseline, name, splitRec) {
     const el = document.getElementById('growthFoot');
     const last = all[all.length - 1];
     if (!last) { el.innerHTML = ''; return; }
@@ -3366,39 +3418,49 @@ function renderGrowthBoard(keys, all, points, baseline, name) {
     const rangeLabel = baseline && { '1M': '1 month', '3M': '3 months', '6M': '6 months', '1Y': '1 year' }[growthRange];
     const cls = v => v >= 0 ? 'up' : 'down';
     const dayOf = date => growthDateLabel({ date }, true);
-    const row = (key, label, worth, gain, change, me) =>
-        `<tr${me ? ' class="me"' : ''}><td><span class="board-key"${key}></span>${label}</td><td>${fmt(worth)}</td><td class="${cls(gain)}">${fmtSigned(gain)}</td>` +
+    const onMoney = (gain, cost) => cost > 0 ? fmtSignedPct(gain / cost) : '--';
+    const row = (key, label, worth, gain, cost, change, klass) =>
+        `<tr${klass ? ` class="${klass}"` : ''}><td><span class="board-key"${key}></span>${label}</td><td>${fmt(worth)}</td>` +
+        `<td class="${cls(gain)}">${fmtSigned(gain)}</td><td class="${cls(gain)}">${onMoney(gain, cost)}</td>` +
         (rangeLabel ? `<td class="${cls(change)}">${fmtSigned(change)}</td>` : '') + '</tr>';
-    let rows = row('', name, last.value, last.pnl, baseline ? last.pnl - baseline.pnl : 0, true);
+    const cols = rangeLabel ? 5 : 4;
+    let rows = row('', name, last.value, last.pnl, last.cost, baseline ? last.pnl - baseline.pnl : 0, 'me');
     let verdict = '';
     growthVs.forEach(v => {
         const g = last.sx[v.px], d = last.pnl - g;
-        rows += row(` style="border-top:2px ${v.css} ${v.line}"`, 'Same money in ' + v.name, last.cost + g, g, baseline ? g - baseline.sx[v.px] : 0);
-        verdict += `<span class="growth-pill ${cls(d)}">${d >= 0 ? '▲' : '▼'} $${Math.abs(d).toFixed(2)} ${d >= 0 ? 'ahead of' : 'behind'} ${v.name}</span>`;
+        rows += row(` style="border-top:2px ${v.css} ${v.line}"`, 'Same money in ' + v.name, last.cost + g, g, last.cost, baseline ? g - baseline.sx[v.px] : 0);
+        verdict += `<span class="growth-pill ${cls(d)}">${d >= 0 ? '▲' : '▼'} ${last.cost > 0 ? (Math.abs(d) / last.cost * 100).toFixed(1) + '% ' : ''}${d >= 0 ? 'ahead of' : 'behind'} ${v.name} ($${Math.abs(d).toFixed(2)})</span>`;
     });
-    // Best gain inside the range and the deepest dip from it
+    if (verdict) rows += `<tr><td colspan="${cols}"><div class="board-verdict">${verdict}</div></td></tr>`;
+    if (splitRec) [[_asideLabel(splitRec), 'aside'], ['Whole Flywheel', 'stocks']].forEach(([label, key], i) => {
+        const side = buildGrowthSeries([key]), end = side[side.length - 1];
+        if (!end) return;
+        const from = baseline ? growthWindow(side, growthRange).baseline : null;
+        rows += row(' style="border-top-color:transparent"', label, end.value, end.pnl, end.cost, from ? end.pnl - from.pnl : 0, i ? 'also' : 'also first');
+    });
+    // The deepest dip from the best gain inside the range
     let runPeak = -Infinity, dip = 0;
     points.forEach(p => { runPeak = Math.max(runPeak, p.pnl); dip = Math.max(dip, runPeak - p.pnl); });
-    const pct = last.cost > 0 ? last.pnl / last.cost * 100 : 0;
-    const facts = ['Money in ' + fmt(last.cost) + ' (' + (pct >= 0 ? '+' : '−') + Math.abs(pct).toFixed(1) + '% on it)'];
+    const facts = ['Money in ' + fmt(last.cost)];
     const banked = last.live ? last.pnl - (last.value - last.basis) : 0;
     if (Math.abs(banked) >= 5) facts.push('still held ' + fmtSigned(last.value - last.basis) + ', already banked from sales ' + fmtSigned(banked));
     if (dip > 0.005) facts.push('deepest dip −$' + dip.toFixed(2));
-    const div = rec ? keys.reduce((s, k) => s + ((rec.p[k] || {}).div || 0), 0) : 0;
+    const divOf = k => k === 'picks' ? (rec.p.stocks.div || 0) - (rec.p.aside.div || 0) : ((rec.p[k] || {}).div || 0);
+    const div = rec ? keys.reduce((s, k) => s + divOf(k), 0) : 0;
     if (div >= 0.5) facts.push('about $' + div.toFixed(0) + ' of dividends through ' + dayOf(rec.through) + ', not counted');
     const vsNames = growthVs.map(v => v.name).join(' and ');
     const help = [
-        '<b>Gain</b> is what it\'s worth now minus the money you put in: everything you bought, minus what you got back from selling. Profit on shares you already sold still counts.',
-        growthVs.length ? '<b>Same money in ' + vsNames + '</b>: every dollar you put in here, put there instead on the same day, and every dollar you took out, taken out. The deposits are identical, so the only difference is where the money sat.' +
+        '<b>Gain</b> is what it\'s worth now minus the money you put in: everything you bought, minus what you got back from selling. Profit on shares you already sold still counts. <b>Gain %</b> is that gain divided by the money in.',
+        growthVs.length ? '<b>Same money in ' + vsNames + '</b>: every dollar you put in here, put there instead on the same day, and every dollar you took out, taken out. The deposits are identical, so the only difference is where the money sat, and the percentages compare directly.' +
             (growthVs.length > 1 ? ' Growth means your Growth mix at its target weights.' : '') : '',
-        growthVs.length ? '<b>Ahead or behind</b> is this portfolio\'s worth minus theirs. The dashed line' + (growthVs.length > 1 ? 's are' : ' is') + ' their gain on the chart.' : '',
+        growthVs.length ? '<b>Ahead or behind</b> is your gain minus theirs, as a percent of the money in and in dollars. The dashed line' + (growthVs.length > 1 ? 's are' : ' is') + ' their gain on the chart.' : '',
+        splitRec ? '<b>' + _asideLabel(splitRec) + '</b> is held on this page but was never one of the Flywheel\'s picks, so it has its own row and stays out of the picks\' score. Picks plus ' + splitRec.aside.name.toLowerCase() + ' make the whole Flywheel.' : '',
         'Prices only: dividends aren\'t counted in any row.',
         rec ? 'Trades are exact from your Robinhood statements through ' + dayOf(rec.exact) + '. After that it follows your Robinhood matches and what\'s logged here.'
             : 'The record from your Robinhood statements hasn\'t reached this device, so money in is the cost of what you hold.'
     ].filter(Boolean).map(s => '<p>' + s + '</p>').join('');
     el.innerHTML =
-        `<table class="board"><thead><tr><th>Since ${dayOf(all[0].date)}</th><th>Worth now</th><th>Gain</th>${rangeLabel ? `<th>Last ${rangeLabel}</th>` : ''}</tr></thead><tbody>${rows}</tbody></table>` +
-        (verdict ? `<div class="board-verdict">${verdict}</div>` : '') +
+        `<table class="board"><thead><tr><th>Since ${dayOf(all[0].date)}</th><th>Worth now</th><th>Gain</th><th>Gain %</th>${rangeLabel ? `<th>Last ${rangeLabel}</th>` : ''}</tr></thead><tbody>${rows}</tbody></table>` +
         `<div class="board-facts">${facts.join(' · ')}</div>` +
         `<details class="board-help"${growthHelpOpen ? ' open' : ''} ontoggle="growthHelpOpen = this.open"><summary>How to read this</summary>${help}</details>`;
 }
