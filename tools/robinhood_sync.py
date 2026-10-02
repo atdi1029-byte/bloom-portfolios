@@ -18,6 +18,8 @@ What it does:
   * a 'reconcile' history entry is added: the app treats trades logged before it as already
     counted, so a device that syncs later can't add them twice
   * today's value snapshot is redone with the new holdings
+  * afterwards, run tools/statements.py --apply so the record (money in, S&P 500 and Growth
+    comparisons) is rebuilt through this match
   * the cloud copy is backed up to sync-data/ first, uploaded (dry run, then real), and read back
 The IRA isn't touched: it isn't in the Robinhood account these screenshots come from.
 """
@@ -41,6 +43,19 @@ def order_lists():
              re.findall(r"(\w+): \{\n        name: '[^']*',[\s\S]*?order: \[([^\]]*)\]", html)}
     assert set(found) == {'cushion', 'growth', 'ira', 'stocks'}, 'could not read portfolio order lists'
     return found
+
+
+def growth_mix():
+    """The Growth targets and the prices the Growth mix index is measured from, both read from the app"""
+    html = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
+    w = {t: int(p) / 100 for t, p in re.findall(r"(\w+):\s*\{ pct: (\d+)", html[html.index("growth: {"):html.index("ira: {")])}
+    m = re.search(r"const GROWTH_NAV_BASE = \{([^}]*)\}", html)
+    if not m:
+        sys.exit('GROWTH_NAV_BASE not found in index.html')
+    base = {t: float(p) for t, p in re.findall(r"(\w+): ([\d.]+)", m.group(1))}
+    if set(w) != set(base):
+        sys.exit('GROWTH_NAV_BASE tickers %s do not match the Growth targets %s' % (sorted(base), sorted(w)))
+    return w, base
 
 
 def iso(ms):
@@ -73,10 +88,6 @@ def build(cloud, positions, prices, sold):
         sell = {'id': 'sell_%d' % (now - 3000 + i * 100), 'date': iso(now - 3000 + i * 100), 'portfolio': pk,
                 'totalAmount': amount, 'type': 'sell', 'ticker': t, 'shares': h['shares'], 'price': prices[t],
                 'profit': round(amount - h.get('costBasis', 0), 2)}
-        if pk == 'stocks':   # Growth prices at the sale, for the Flywheel optimizer's shadow
-            bench = {g: prices[g] for g in order['growth'] if prices.get(g)}
-            if bench:
-                sell['bench'] = bench
         sells.append(sell)
     d['history'] += sells
 
@@ -120,7 +131,10 @@ def build(cloud, positions, prices, sold):
                          'totalAmount': 0, 'note': note, 'changes': changes})
 
     today = iso(now)[:10]
-    snap = {'date': today, 'portfolios': {}}
+    snap = {'date': today, 'ts': now, 'portfolios': {}}
+    gw, gbase = growth_mix()                         # S&P 500 price and Growth mix index, as the app stores them
+    if prices.get('VOO') and all(prices.get(g) for g in gw):
+        snap['x'] = [round(prices['VOO'], 2), round(sum(w * prices[g] / gbase[g] for g, w in gw.items()), 5)]
     for pk, p in d['portfolios'].items():
         snap['portfolios'][pk] = {'value': round(sum(h.get('shares', 0) * prices.get(t, 0) for t, h in p['holdings'].items()), 2),
                                   'cost': round(sum(h.get('costBasis', 0) for h in p['holdings'].values()), 2)}

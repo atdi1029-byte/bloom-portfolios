@@ -5302,6 +5302,7 @@ function dailyDcaSnapshot() {
     if (!json) { BLOOM_log('Snapshot skipped: no data stored yet'); return; }
     var tickers = BLOOM_heldTickers(JSON.parse(json));
     if (!tickers.length) { BLOOM_log('Snapshot skipped: no holdings'); return; }
+    BLOOM_indexTickers().forEach(function (t) { if (tickers.indexOf(t) < 0) tickers.push(t); });
 
     var prices = BLOOM_getPrices(tickers);
     var priced = tickers.filter(function (t) { return prices[t] > 0; });
@@ -5318,7 +5319,9 @@ function dailyDcaSnapshot() {
 
       // Same UTC-date convention as the client (new Date().toISOString().slice(0,10))
       var today = new Date().toISOString().slice(0, 10);
-      var snap = { date: today, portfolios: {} };
+      var snap = { date: today, ts: Date.now(), portfolios: {} };
+      var x = BLOOM_indexPrices(prices);
+      if (x) snap.x = x;
       Object.keys(data.portfolios).forEach(function (pk) {
         var h = (data.portfolios[pk] && data.portfolios[pk].holdings) || {};
         var value = 0, cost = 0;
@@ -5350,6 +5353,27 @@ function dailyDcaSnapshot() {
     BLOOM_log('Snapshot ERROR: ' + (err && err.stack ? err.stack : err));
     throw err; // keep Google's failure email as a backstop
   }
+}
+
+// The S&P 500 price and the Growth mix index at the moment of a snapshot. The app uses them
+// to work out what each day's deposits would be worth in the S&P 500 or in Growth. Same
+// definition as the app: Growth target weights, 1.00 at the base prices (GROWTH_NAV_BASE and
+// the Growth targets in Bloom's index.html; gas_deploy.sh checks they match).
+var BLOOM_SPX_TICKER = 'VOO';
+var BLOOM_GROWTH_MIX = {      // ticker: [target %, base price]
+  VTI: [34, 375.84], SCHG: [22, 35.95], VXUS: [17, 85.75], AVUV: [13, 119.55], SCHD: [11, 33.01], VO: [3, 79]
+};
+function BLOOM_indexTickers() { return [BLOOM_SPX_TICKER].concat(Object.keys(BLOOM_GROWTH_MIX)); }
+/** [S&P 500 price, Growth mix index], or null when a price is missing. */
+function BLOOM_indexPrices(prices) {
+  var spx = Number(prices[BLOOM_SPX_TICKER]), nav = 0;
+  if (!(spx > 0)) return null;
+  for (var t in BLOOM_GROWTH_MIX) {
+    var p = Number(prices[t]);
+    if (!(p > 0)) return null;
+    nav += BLOOM_GROWTH_MIX[t][0] / 100 * p / BLOOM_GROWTH_MIX[t][1];
+  }
+  return [Math.round(spx * 100) / 100, Math.round(nav * 1e5) / 1e5];
 }
 
 /** Tickers with shares > 0 across all portfolios (avoids 60+ quote calls for empty Flywheel slots). */

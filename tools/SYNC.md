@@ -14,7 +14,14 @@ Trigger: the user says **"bloom sync"**, usually with screenshots of Robinhood's
    Anything Bloom holds that isn't in the list is set to 0 either way.
 4. **Apply**: re-run with `--apply`. The script backs up the cloud copy to `sync-data/` first.
    It uploads a dry run, then the real copy, and reads it back.
-5. Tell the user what changed (the script prints it). Bloom's header should then say
+5. **Rebuild the record**: `/usr/bin/python3 tools/statements.py` (preview), then `--apply`.
+   The record is what the return charts, the S&P 500 / Growth comparisons and the Flywheel
+   optimizer are drawn from: money in, worth, and the same money in the S&P 500 or the Growth
+   mix, for each portfolio. It is exact for every month that has a Robinhood statement PDF in
+   `sync-data/statements/` and estimated between the last statement and this match, so ask for
+   any monthly statement that's missing (Robinhood: Account > Statements). It also needs
+   re-running whenever a new statement is added.
+6. Tell the user what changed (both scripts print it). Bloom's header should then say
    "Matched to Robinhood today" on both devices. It turns amber after 14 days without a sync.
 
 Notes
@@ -24,4 +31,9 @@ Notes
 - A ticker the script can't place (not in any Bloom order list) stops the run. Add it to the
   Flywheel first. It also needs to go into `DCA_TICKERS` in the Apps Script (see memory: Bloom = SPX script).
 - In the app, a sync is a `type: 'reconcile'` history entry. Trades logged before it count as
-  already included when another device syncs later, so they are never added twice.
+  already included when another device syncs later, so they are never added twice. The record
+  rides on the latest of these entries (`record`), because every copy of the app, old or new,
+  keeps and syncs that entry whole.
+- The Growth mix index is defined in three places that must agree: `GROWTH_NAV_BASE` plus the
+  Growth targets in `index.html`, and `BLOOM_GROWTH_MIX` in the Apps Script (the server's daily
+  snapshot stores it). `gas_deploy.sh spx` refuses to deploy when they differ.
