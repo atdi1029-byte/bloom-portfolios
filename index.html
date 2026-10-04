@@ -3807,7 +3807,8 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
             return { ticker: t, price: getPrice(t), vs: calcValuationScore(t), rsi: p.rsi14, sma50: p.sma50, sma200: p.sma200, high52: p.high52 };
         }).sort((a, b) => b.vs - a.vs);
         console.table(ranked);
-        tickers = ranked.slice(0, 8).map(x => x.ticker);
+        // Fewer than 8 when the money is small, so each pick can still get about $1 (the smallest order)
+        tickers = ranked.slice(0, Math.max(1, Math.min(8, Math.floor(investAmount / 1.1)))).map(x => x.ticker);
     }
     const cap = pDef.hardCap;
     let effectiveAmount = investAmount;
@@ -3829,7 +3830,8 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const maxSingle = effectiveAmount * (cap > 0 ? 0.40 : 0.45);
     let overflow = 0;
     eligible.forEach(e => { if (e.rawAlloc > maxSingle) { overflow += e.rawAlloc - maxSingle; e.rawAlloc = maxSingle; e.capped = true; } });
-    if (overflow > 0) { const unc = eligible.filter(e => !e.capped); const ut = unc.reduce((s, e) => s + e.composite, 0); unc.forEach(e => { e.rawAlloc += ut > 0 ? overflow * (e.composite / ut) : overflow / unc.length; }); }
+    // With only one or two picks every one is over the limit: the extra goes back to them rather than getting lost
+    if (overflow > 0) { const unc = eligible.filter(e => !e.capped), to = unc.length ? unc : eligible; const ut = to.reduce((s, e) => s + e.composite, 0); to.forEach(e => { e.rawAlloc += ut > 0 ? overflow * (e.composite / ut) : overflow / to.length; }); }
     let dust = 0;
     eligible.forEach(e => { if (e.rawAlloc < 1 && e.rawAlloc > 0) { dust += e.rawAlloc; e.rawAlloc = 0; } });
     let safety = 0;
