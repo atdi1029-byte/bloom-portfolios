@@ -3793,10 +3793,14 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     const data = loadData();
     if (!data.portfolios[portfolioKey]) { data.portfolios[portfolioKey] = { holdings: {} }; pDef.order.forEach(t => { data.portfolios[portfolioKey].holdings[t] = { shares: 0, costBasis: 0 }; }); }
     const pd = data.portfolios[portfolioKey];
+    let totalVal = 0;
+    pDef.order.forEach(t => { totalVal += (pd.holdings[t] || { shares: 0 }).shares * getPrice(t); });
     let tickers = pDef.order;
     if (onlyOpps) {
-        // Flywheel: rank all tickers with prices, pick top 8 cheapest (no absolute threshold)
-        tickers = tickers.filter(t => getPrice(t) > 0 && !isSkipped(t));
+        // Flywheel: rank all tickers with prices, pick top 8 cheapest (no absolute threshold).
+        // A ticker already at its target weight gets no money below, so it can't take one of the 8.
+        const underTarget = t => (pd.holdings[t] || { shares: 0 }).shares * getPrice(t) / (totalVal + investAmount) * 100 < pDef.targets[t].pct;
+        tickers = tickers.filter(t => getPrice(t) > 0 && !isSkipped(t) && underTarget(t));
         if (tickers.length === 0) return { portfolioKey, capped: false, allocations: [], totalAmount: 0, noOpps: true };
         const ranked = tickers.map(t => {
             const p = livePrices[t] || {};
@@ -3805,8 +3809,6 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
         console.table(ranked);
         tickers = ranked.slice(0, 8).map(x => x.ticker);
     }
-    let totalVal = 0;
-    pDef.order.forEach(t => { totalVal += (pd.holdings[t] || { shares: 0 }).shares * getPrice(t); });
     const cap = pDef.hardCap;
     let effectiveAmount = investAmount;
     if (cap > 0) { effectiveAmount = Math.min(investAmount, Math.max(0, cap - totalVal)); if (effectiveAmount <= 0) return { portfolioKey, capped: true, allocations: [], totalAmount: 0 }; }
