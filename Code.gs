@@ -2749,8 +2749,13 @@ var DCA_TICKERS = [
   'CPAY', 'GLW', 'APH', 'KEYS', 'JBL', 'ARW', 'INCY',
   'MCHP', 'NXPI', 'SNPS',
   'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY',
-  'TDY', 'TRMB', 'WST', 'TECH', 'ACGL'
+  'TDY', 'TRMB', 'WST', 'TECH', 'ACGL',
+  'RMBS', 'GD', 'MTUM', 'ITW'
 ];
+
+// GOOGLEFINANCE symbols where the bare ticker resolves to the wrong listing or #N/A
+// (bare MTUM priced at ~$28 vs ~$320 on Yahoo, Oct 11 2026; BRK-B returns #N/A)
+var DCA_GF_SYMBOLS = { 'MTUM': 'BATS:MTUM', 'BRK-B': 'BRK.B' };
 
 // ---------------------------------------------------------------
 // serveDcaPricesJSON_ — Returns live ETF prices + technicals
@@ -3121,12 +3126,13 @@ function setupDcaSheet() {
   var formulas = [];
   for (var i = 0; i < DCA_TICKERS.length; i++) {
     var t = DCA_TICKERS[i];
+    var gf = DCA_GF_SYMBOLS[t] || t;
     rows.push([t, '', '', '', '']);
     formulas.push([
-      '=GOOGLEFINANCE("' + t + '","price")',
-      '=GOOGLEFINANCE("' + t + '","high52")',
-      '=GOOGLEFINANCE("' + t + '","low52")',
-      '=GOOGLEFINANCE("' + t + '","changepct")'
+      '=GOOGLEFINANCE("' + gf + '","price")',
+      '=GOOGLEFINANCE("' + gf + '","high52")',
+      '=GOOGLEFINANCE("' + gf + '","low52")',
+      '=GOOGLEFINANCE("' + gf + '","changepct")'
     ]);
   }
 
