@@ -2750,7 +2750,8 @@ var DCA_TICKERS = [
   'MCHP', 'NXPI', 'SNPS',
   'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY',
   'TDY', 'TRMB', 'WST', 'TECH', 'ACGL',
-  'RMBS', 'GD', 'MTUM', 'ITW'
+  'RMBS', 'GD', 'MTUM', 'ITW',
+  'PH', 'DOV', 'IR', 'ROK', 'NDSN', 'CMI', 'PCAR'
 ];
 
 // GOOGLEFINANCE symbols where the bare ticker resolves to the wrong listing or #N/A
