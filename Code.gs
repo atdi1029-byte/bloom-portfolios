@@ -4764,6 +4764,13 @@ function closePositionRows_(p) {
     // Old rows carry a dropdown rule (TP Hit / Stopped Out / Open / 0x0, reject anything else) from
     // the original setup and close path. It made "Closed" throw, so the close never saved (XAUUSD, Sep 30).
     open.forEach(function (r) { sh.getRange(r.row, c.outcome + 1).clearDataValidations(); });
+    if (outcome.toLowerCase() === '0x0') {
+      // 0x0 (dashboard button, Oct 27 2026) = TP1 banked, SL at entry, still OPEN: stamp the main row
+      // only. Leave the legs, P&L and timestamp alone - 0x0 rows stay open (dashIsClosedOutcome_).
+      sh.getRange(main.row, c.outcome + 1).setValue('0x0');
+      sh.getRange(main.row, c.notes + 1).setValue((main.notes ? main.notes + ' | ' : '') + '0x0 ' + stamp);
+      return { status: 'ok', ticker: ticker, side: side, outcome: '0x0', row: main.row, open: true };
+    }
     open.forEach(function (r) {
       var isMain = r.row === main.row;
       sh.getRange(r.row, c.outcome + 1).setValue(isMain ? outcome : DASH_LEG_OUTCOME_);
