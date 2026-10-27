@@ -54,6 +54,11 @@ def flywheel_targets():
     return {t.strip("'"): int(p) for t, p in re.findall(r"('?[\w-]+'?):\s*\{ pct: (\d+)", block)}
 
 
+def take_profit_pct():
+    src = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
+    return int(re.search(r'const TAKE_PROFIT_PCT = (\d+)', src).group(1))
+
+
 def collect():
     raw = api('action=load_dca_data')
     cloud = json.loads(raw['data'])
@@ -76,13 +81,14 @@ def collect():
                      'vs': vs, 'zone': zone, 'shown': shown, 'rsi': f.get('rsi14'), 'dss': f.get('dss3d'),
                      'target': targets.get(t, 0), 'aside': t in aside})
     total = sum(r['value'] for r in rows)
+    tp = take_profit_pct()
     for r in rows:
         r['pct'] = r['value'] / total * 100 if total else 0
         # The app's two sell badges on the Flywheel cards
         r['flags'] = []
         if r['aside']:
             continue
-        if r['ret'] >= 50 and r['vs'] < 0.40:
+        if r['ret'] >= tp and r['vs'] < 0.40:
             r['flags'].append('Take profit (%.0f%%)' % r['ret'])
         if r['target'] and r['pct'] >= r['target'] * 2 and total > 1000:
             r['flags'].append('Trim $%.0f (%.0f%% of Flywheel, target %d%%)' % (
@@ -168,7 +174,7 @@ h2 {{ font-size:1rem; margin:28px 0 10px; }}
 {f'<h2>Gold hedge: kept apart, not a pick</h2><div class="chips">{chips(hedge)}</div>' if hedge else ''}
 <p class="note">Zone = Bloom's own Cheap / Fair / Expensive score (RSI, distance from the 50 and 200-day averages,
 drop from the 52-week high, DSS 3D bonus), the same score the splitter picks buys with. Flags are the app's sell
-badges: Take profit at +50% when no longer cheap, Trim when a position is twice its target weight.
+badges: Take profit at +{take_profit_pct()}% when no longer cheap, Trim when a position is twice its target weight.
 Holdings from Bloom (saved {saved[:10]}, last Robinhood sync {synced[:10]}). {since}
 Every ticker opens its TradingView chart.</p>
 </main></body></html>'''
