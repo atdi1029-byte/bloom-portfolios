@@ -4394,6 +4394,16 @@ var DASHBOARD_STATE_SHEET_ = 'Dashboard State'; // hidden tab, A1 holds the JSON
 // Entry points (wrappers around the originals above)
 // ---------------------------------------------------------------------------
 
+// Read-only: every row of the Positions tab, for the trade review (Nov 9 2026). ?action=positions_raw
+function servePositionsRaw_() {
+  var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(POSITIONS).getDataRange().getValues();
+  var tz = Session.getScriptTimeZone();
+  var rows = data.map(function (r) {
+    return r.map(function (v) { return v instanceof Date ? Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss') : v; });
+  });
+  return dashJson_({ status: 'ok', count: rows.length, tz: tz, rows: rows });
+}
+
 // Read-only: every row of the Signal Log, for the trade review (Nov 9 2026). ?action=signal_log
 function serveSignalLog_() {
   var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SIGNAL_LOG).getDataRange().getValues();
@@ -4424,6 +4434,7 @@ function doGet(e) {
 
   if (action === 'dashboard') return serveDashboard_(e, String(p.nocache || '') === '1');
   if (action === 'signal_log') return serveSignalLog_();
+  if (action === 'positions_raw') return servePositionsRaw_();
   if (action === 'diag') return dashJson_(diagPositions_(p));
   if (DASH_STATS_ENGINE && action === 'update_position' && String(p.field || '') === 'outcome') {
     var closed = closePositionRows_(p);
