@@ -3343,9 +3343,18 @@ function buildGrowthSeries(keys) {
     if (fromRecord) out[0].fromStart = true;
     if (out.length && out.every(p => p.spx > 0 && p.gro > 0)) ['spx', 'gro'].forEach(px => {
         let S = fromRecord ? out[0].cost : out[0].value;
+        // The comparison lines: the index side never sells. Money you take out waits as cash and
+        // pays for the next buys, so only truly new money buys more index (Alex, Nov 9 2026).
+        let H = S, idle = 0;
         out.forEach((p, i) => {
-            if (i) S = S * p[px] / out[i - 1][px] + (p.cost - out[i - 1].cost);
-            (p.sx = p.sx || {})[px] = S - p.cost;
+            if (i) {
+                S = S * p[px] / out[i - 1][px] + (p.cost - out[i - 1].cost);
+                H = H * p[px] / out[i - 1][px];
+                const flow = p.cost - out[i - 1].cost, fromCash = flow > 0 ? Math.min(idle, flow) : 0;
+                if (flow < 0) idle -= flow; else { idle -= fromCash; H += flow - fromCash; }
+            }
+            (p.sx = p.sx || {})[px] = S - p.cost;   // sold when you sold: the Flywheel optimizer reads this one
+            (p.hold = p.hold || {})[px] = { gain: H - p.cost - idle, worth: H, money: p.cost + idle };
         });
     });
     return out;
@@ -3434,9 +3443,9 @@ function renderGrowthBoard(keys, all, points, baseline, name, splitRec) {
     let rows = row('', name, last.value, last.pnl, last.cost, baseline ? last.pnl - baseline.pnl : 0, 'me');
     let verdict = '';
     growthVs.forEach(v => {
-        const g = last.sx[v.px], d = last.pnl - g;
-        rows += row(` style="border-top:2px ${v.css} ${v.line}"`, 'Same money in ' + v.name, last.cost + g, g, last.cost, baseline ? g - baseline.sx[v.px] : 0);
-        verdict += `<span class="growth-pill ${cls(d)}">${d >= 0 ? '▲' : '▼'} ${last.cost > 0 ? (Math.abs(d) / last.cost * 100).toFixed(1) + '% ' : ''}${d >= 0 ? 'ahead of' : 'behind'} ${v.name} ($${Math.abs(d).toFixed(2)})</span>`;
+        const h = last.hold[v.px], g = h.gain, d = last.pnl - g;
+        rows += row(` style="border-top:2px ${v.css} ${v.line}"`, 'Same money left in ' + v.name, h.worth, g, h.money, baseline ? g - baseline.hold[v.px].gain : 0);
+        verdict += `<span class="growth-pill ${cls(d)}">${d >= 0 ? '▲' : '▼'} ${h.money > 0 ? (Math.abs(d) / h.money * 100).toFixed(1) + '% ' : ''}${d >= 0 ? 'ahead of' : 'behind'} ${v.name} ($${Math.abs(d).toFixed(2)})</span>`;
     });
     if (verdict) rows += `<tr><td colspan="${cols}"><div class="board-verdict">${verdict}</div></td></tr>`;
     if (splitRec) [[_asideLabel(splitRec), 'aside'], ['Whole Flywheel', 'stocks']].forEach(([label, key], i) => {
@@ -3506,7 +3515,7 @@ function drawGrowthChart(series, animate, totalPoints) {
     const plotH = H - pad.top - pad.bottom;
 
     // Y scale on "nice" steps (1-2-2.5-5), always including $0 and the comparison lines
-    const shadows = growthVs.map(v => ({ v, vals: series.map(p => p.sx[v.px]) }));
+    const shadows = growthVs.map(v => ({ v, vals: series.map(p => p.hold[v.px].gain) }));
     const vals = series.map(p => p.pnl).concat(...shadows.map(s => s.vals));
     const rawMin = Math.min(...vals, 0), rawMax = Math.max(...vals, 0);
     const roughStep = ((rawMax - rawMin) || 1) / 4;
@@ -3678,7 +3687,7 @@ function drawGrowthChart(series, animate, totalPoints) {
             '<div class="growth-tip-date">' + (p.live ? 'Now' : growthDateLabel(p, true)) + '</div>' +
             '<div style="color:' + color + ';font-weight:700;font-size:0.72rem">' + fmtSigned(p.pnl) + '</div>' +
             '<div>Worth ' + fmt(p.value) + ' · In ' + fmt(p.cost) + '</div>' +
-            growthVs.map(v => '<div style="color:' + v.text + '">Same money in ' + v.name + ': ' + fmtSigned(p.sx[v.px]) + '</div>').join('') +
+            growthVs.map(v => '<div style="color:' + v.text + '">Same money left in ' + v.name + ': ' + fmtSigned(p.hold[v.px].gain) + '</div>').join('') +
             (delta !== null ? '<div style="color:' + (delta >= 0 ? GROWTH_INK.up : GROWTH_INK.down) + '">' + fmtSigned(delta) + ' since ' + growthDateLabel(prev) + '</div>' : '');
         tip.style.display = 'block';
         const tx = growthXs[idx], ty = growthYs[idx];
