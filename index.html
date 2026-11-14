@@ -3892,7 +3892,7 @@ async function previewSplitter() {
         const pDef = PORTFOLIOS[r.portfolioKey];
         if (r.capped) return `<div class="splitter-result-line"><span class="splitter-result-port">${pDef.name}</span><span class="splitter-result-detail">Capped</span></div>`;
         const isStocks = r.portfolioKey === 'stocks';
-        const header = `<div class="splitter-result-line"><span style="display:flex;align-items:center;gap:6px"><span class="splitter-result-port">${pDef.name}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button><button class="flywheel-2x-btn" onclick="toggleFlywheel2x(this)">2×</button>` : ''}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div>`;
+        const header = `<div class="splitter-result-line"><span style="display:flex;align-items:center;gap:6px"><span class="splitter-result-port">${pDef.name}</span>${isStocks ? `<button class="skip-toggle" onclick="toggleSkipMode(this)">skip</button><button class="flywheel-2x-btn" onclick="toggleFlywheel2x(this)">2.5×</button>` : ''}</span><span class="splitter-result-amt" style="color:${rc}">${fmt(r.totalAmount)}</span></div>`;
         const pills = r.allocations.map(a => { const tip = (pDef.targets[a.ticker] || {}).purpose || ''; return `<span class="splitter-pill" data-pkey="${r.portfolioKey}" data-ticker="${a.ticker}" data-amount="${a.amount}" data-shares="${a.shares}" data-price="${a.price}" onclick="buyPill(this)" title="${tip}">${a.ticker} ${fmt(a.amount)}</span>${isStocks ? `<button class="skip-2w-btn" onclick="event.stopPropagation();skipAndRerun('${a.ticker}')">2w</button>` : ''}`; }).join('');
         return `${header}<div class="splitter-pills-wrap" style="display:flex; flex-wrap:wrap; gap:6px; padding:4px 0 8px 0;">${pills}</div>`;
     }).join('');
@@ -3900,13 +3900,14 @@ async function previewSplitter() {
     body.innerHTML = html;
     document.getElementById('splitterResult').classList.add('show');
 }
+const FLYWHEEL_BOOST = 2.5; // Flywheel buy multiplier (was 2x until 14 Nov 2026)
 function toggleFlywheel2x(btn) {
     const active = btn.classList.toggle('active');
     const pills = document.querySelectorAll('.splitter-pill[data-pkey="stocks"]');
     pills.forEach(p => {
         const orig = parseFloat(p.dataset.origAmount || p.dataset.amount);
         if (!p.dataset.origAmount) { p.dataset.origAmount = p.dataset.amount; p.dataset.origShares = p.dataset.shares; }
-        const mult = active ? 2 : 1;
+        const mult = active ? FLYWHEEL_BOOST : 1;
         const newAmt = Math.round(orig * mult * 100) / 100;
         const newShares = parseFloat(p.dataset.price) > 0 ? newAmt / parseFloat(p.dataset.price) : 0;
         p.dataset.amount = newAmt;
@@ -3917,7 +3918,7 @@ function toggleFlywheel2x(btn) {
     const stocksResult = pendingSplitter && pendingSplitter.find(r => r.portfolioKey === 'stocks');
     if (stocksResult) {
         const origTotal = stocksResult.allocations.reduce((s, a) => s + a.amount, 0);
-        const displayTotal = active ? origTotal * 2 : origTotal;
+        const displayTotal = active ? origTotal * FLYWHEEL_BOOST : origTotal;
         const amtEl = btn.closest('.splitter-result-line').querySelector('.splitter-result-amt');
         if (amtEl) amtEl.textContent = fmt(displayTotal);
         // Update grand total
@@ -3979,7 +3980,7 @@ function confirmSplitter() {
         pd.holdings[ticker].costBasis += amount;
     });
     // Add history entries per portfolio, from the pills themselves so they match what was
-    // added to holdings (the 2x button changes pill amounts, not pendingSplitter)
+    // added to holdings (the 2.5x button changes pill amounts, not pendingSplitter)
     if (!data.history) data.history = [];
     const byPortfolio = {};
     unbought.forEach(el => {
