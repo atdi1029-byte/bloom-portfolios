@@ -1781,6 +1781,7 @@ function _buildSavePayload(data) {
         flyOpt: data.flyOpt || null,
         deletedIds: data.deletedIds || [],
         lastModified: data.lastModified || Date.now(),
+        skips: loadSkips(),
         seenBuyOpps: [...seenBuyOpps],
         seenSellOpps: [...seenSellOpps],
         dismissedOpps: [...dismissedOpps]
@@ -3793,9 +3794,27 @@ const SKIP_DURATION = 14 * 24 * 60 * 60 * 1000; // 2 weeks
 function loadSkips() {
     try { const s = JSON.parse(localStorage.getItem(SKIP_KEY) || '{}'); const now = Date.now(); const clean = {}; for (const [t, exp] of Object.entries(s)) { if (exp > now) clean[t] = exp; } if (Object.keys(clean).length !== Object.keys(s).length) localStorage.setItem(SKIP_KEY, JSON.stringify(clean)); return clean; } catch { return {}; }
 }
-function saveSkip(ticker) { const s = loadSkips(); s[ticker] = Date.now() + SKIP_DURATION; localStorage.setItem(SKIP_KEY, JSON.stringify(s)); }
+function saveSkip(ticker) { const s = loadSkips(); s[ticker] = Date.now() + SKIP_DURATION; localStorage.setItem(SKIP_KEY, JSON.stringify(s)); syncToCloud(); }
 function isSkipped(ticker) { const s = loadSkips(); return s[ticker] && s[ticker] > Date.now(); }
-function skipAndRerun(ticker) { saveSkip(ticker); previewSplitter(); }
+function skipAndRerun(ticker) { saveSkip(ticker); previewSplitter(true); }
+// Skips travel with the cloud copy, so the phone and the computer leave out the same
+// tickers and the splitter shows the same picks on both. A skip made on either device
+// counts on both until its 2 weeks are up. Returns true when this device holds a skip
+// the cloud copy doesn't.
+function mergeSkips(theirs) {
+    if (!theirs || typeof theirs !== 'object') theirs = {};
+    const now = Date.now(), all = loadSkips();
+    let pulled = false;
+    for (const [t, exp] of Object.entries(theirs)) { if (exp > now && !(all[t] >= exp)) { all[t] = exp; pulled = true; } }
+    if (pulled) safeLocalSave(SKIP_KEY, JSON.stringify(all));
+    return Object.entries(all).some(([t, exp]) => !(theirs[t] >= exp));
+}
+// The other device's latest holdings and skips, read just before the picks are worked out.
+// A slow cloud holds the preview up for 5 seconds at most.
+function _pullForSplit() {
+    if (!syncReady) return Promise.resolve();
+    return new Promise(resolve => { setTimeout(resolve, 5000); mergeFromCloud(false, resolve); });
+}
 function toggleSkipMode(btn) {
     btn.classList.toggle('active');
     const wrap = btn.closest('.splitter-result-line').nextElementSibling;
@@ -3855,8 +3874,9 @@ function calcDCAForPortfolio(portfolioKey, investAmount, onlyOpps) {
     return { portfolioKey, capped: false, allocations, totalAmount: effectiveAmount };
 }
 
-async function previewSplitter() {
-    await refreshPrices(); // Always get fresh prices before calculating
+async function previewSplitter(rerun) {
+    // Always get fresh prices before calculating, and what the other device changed
+    await Promise.all([refreshPrices(), rerun ? null : _pullForSplit()]);
     const total = parseFloat(document.getElementById('splitterTotal').value.replace(/,/g, '')) || 0;
     const ratios = getSplitterInputRatios();
     if (total <= 0 || Object.values(ratios).reduce((s, v) => s + v, 0) !== 100) return;
@@ -4232,7 +4252,7 @@ function mergeCloudData(cloud, isStartup, serverTs, forceRestore) {
     if (cloud.seenBuyOpps) { cloud.seenBuyOpps.forEach(t => seenBuyOpps.add(t)); saveSeenBuyOpps(); }
     if (cloud.seenSellOpps) { cloud.seenSellOpps.forEach(t => seenSellOpps.add(t)); saveSeenSellOpps(); }
     if (cloud.dismissedOpps) { cloud.dismissedOpps.forEach(t => dismissedOpps.add(t)); saveDismissedOpps(); }
-    const needsPush = _syncSig(base) !== _syncSig(cloud);
+    const needsPush = mergeSkips(cloud.skips) || _syncSig(base) !== _syncSig(cloud);
     // The cloud already holds this state, so a save right now would be a no-op
     if (!needsPush) _lastPushedJson = JSON.stringify(_buildSavePayload(loadData()));
     return { needsPush: needsPush };
