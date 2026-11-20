@@ -2751,12 +2751,12 @@ var DCA_TICKERS = [
   'CTA', 'MPWR', 'ENTG', 'HSIC', 'LFUS', 'ST', 'RVTY',
   'TDY', 'TRMB', 'WST', 'TECH', 'ACGL',
   'RMBS', 'GD', 'MTUM', 'ITW',
-  'PH', 'DOV', 'IR', 'ROK', 'NDSN', 'CMI', 'PCAR', 'IWM', 'MAIN'
+  'PH', 'DOV', 'IR', 'ROK', 'NDSN', 'CMI', 'PCAR', 'IWM', 'MAIN', 'ANT'
 ];
 
 // GOOGLEFINANCE symbols where the bare ticker resolves to the wrong listing or #N/A
 // (bare MTUM priced at ~$28 vs ~$320 on Yahoo, Oct 11 2026; BRK-B returns #N/A)
-var DCA_GF_SYMBOLS = { 'MTUM': 'BATS:MTUM', 'BRK-B': 'BRK.B', 'MAIN': 'NYSE:MAIN' };
+var DCA_GF_SYMBOLS = { 'MTUM': 'BATS:MTUM', 'BRK-B': 'BRK.B', 'MAIN': 'NYSE:MAIN', 'ANT': 'NASDAQ:ANT' };
 
 // ---------------------------------------------------------------
 // serveDcaPricesJSON_ — Returns live ETF prices + technicals
